@@ -1,4 +1,4 @@
-# nginx-vhost-php7.3
+# devspoon-web-php
 > nginx와 php7.3 기반으로 가상 호스팅을 Docker와 Docker-compose를 이용해 쉽게 구축할 수 있도록 솔루션을 제공한다.
 
 ## 서비스 특징
