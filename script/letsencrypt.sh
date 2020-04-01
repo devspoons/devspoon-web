@@ -3,7 +3,7 @@
 apt-get update  &&  apt-get install -y sendmail wget vim cron
 
 wget https://dl.eff.org/certbot-auto \
-    && mv certbot-auto /usr/local/bin/certbot-auto \
+    && mv certbot-auto /usr/local/bin/ \
     && chown root /usr/local/bin/certbot-auto \
     && chmod 0755 /usr/local/bin/certbot-auto \
     && certbot-auto --version -n
