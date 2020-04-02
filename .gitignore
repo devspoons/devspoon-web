@@ -1,0 +1,20 @@
+# log files #
+*.log 
+log/
+
+# OS Files #
+*.swp
+
+# web root #
+www/
+
+# compose folders #
+
+# nginx sites-available #
+config/site-available/
+
+# nginx cache #
+nginx_cache/
+
+# ssl files
+ssl/
