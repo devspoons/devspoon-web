@@ -9,6 +9,7 @@ log/
 www/
 
 # compose folders #
+compose/
 
 # nginx sites-available #
 config/site-available/
