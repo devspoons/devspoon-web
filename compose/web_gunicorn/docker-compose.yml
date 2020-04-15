@@ -28,5 +28,7 @@ services:
         - ../../www:/www
         - ../../log:/log
         - /sys/fs/cgroup:/sys/fs/cgroup:ro
+    ports:
+        - "8000:8000"
     restart: always
 

@@ -7,9 +7,15 @@ ENV DEBIAN_FRONTEND noninteractive
 RUN sed -i 's/# deb/deb/g' /etc/apt/sources.list
 
 RUN apt-get update \
+    && apt-get -y dist-upgrade \
     && apt-get install -y systemd systemd-sysv \
+    && apt-get install -y wget vim build-essential python-dev python-setuptools python-pip python-smbus python3-pip git nginx libncursesw5-dev libgdbm-dev libc6-dev zlib1g-dev libsqlite3-dev tk-dev libssl-dev openssl libffi-dev software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get install -y python3.7 \
+    && pip3 install virtualenv \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
 
 RUN cd /lib/systemd/system/sysinit.target.wants/ \
     && ls | grep -v systemd-tmpfiles-setup | xargs rm -f $1
