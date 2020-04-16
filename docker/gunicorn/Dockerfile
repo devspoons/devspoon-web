@@ -33,3 +33,9 @@ RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
 VOLUME [ "/sys/fs/cgroup" ]
 
 CMD ["/lib/systemd/systemd"]
+
+COPY service/ /etc/systemd/system/
+
+RUN systemctl reload-daemon 
+
+RUN systemctl start gunicorn && systemctl enable gunicorn

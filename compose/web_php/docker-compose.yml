@@ -8,9 +8,9 @@ services:
         - ../../www:/www
         - ../../script/:/script/
         - ../../bin/certbot-auto:/usr/local/bin/certbot-auto
-        - ../../config/sites-available/:/etc/nginx/sites-available/
-        - ../../config/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
-        - ../../config/fastcgi/fastcgi_params:/etc/nginx/fastcgi_params
+        - ../../config/web-server/nginx/php/sites-available/:/etc/nginx/sites-available/
+        - ../../config/web-server/nginx/php/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
+        - ../../config/web-server/nginx/php/fastcgi/fastcgi_params:/etc/nginx/fastcgi_params
         - ../../ssl/letsencrypt/:/etc/letsencrypt/
         - ../../ssl/ssl/:/etc/ssl/
         - ../../log:/log
@@ -26,7 +26,7 @@ services:
     container_name: php-fpm7.3      
     volumes:
         - ../../www:/www
-        - ../../config/pool.d/:/etc/php/7.3/fpm/pool.d
-        - ../../config/php_ini/php.ini:/etc/php/7.3/fpm/php.ini
+        - ../../config/app-server/php/pool.d/:/etc/php/7.3/fpm/pool.d
+        - ../../config/app-server/php/php_ini/php.ini:/etc/php/7.3/fpm/php.ini
         - ../../log:/log
     restart: always
