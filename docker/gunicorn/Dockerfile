@@ -30,12 +30,16 @@ RUN rm -f /lib/systemd/system/multi-user.target.wants/* \
     /lib/systemd/system/plymouth* \
     /lib/systemd/system/systemd-update-utmp*
 
+
+COPY service/* /lib/systemd/system/
+
+COPY service/* /etc/systemd/system/
+
+COPY systemctl_cmd.sh /root/systemctl_cmd.sh
+
+RUN chmod 777 /root/systemctl_cmd.sh
+
 VOLUME [ "/sys/fs/cgroup" ]
 
 CMD ["/lib/systemd/systemd"]
 
-COPY service/ /etc/systemd/system/
-
-RUN systemctl reload-daemon 
-
-RUN systemctl start gunicorn && systemctl enable gunicorn
