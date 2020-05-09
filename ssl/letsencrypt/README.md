@@ -1,112 +1,155 @@
-# nginx-vhost-php7.3
-> nginx와 php7.3 기반으로 가상 호스팅을 Docker와 Docker-compose를 이용해 쉽게 구축할 수 있도록 솔루션을 제공한다.
+# nginx-vhost_php7.3_openproject_jenkins_docker-image
+> [nginx-vhost-php7.3] 에서 제공하는 솔루션에 OpenProject, Jenkins를 결합한 솔루션
+
+> 함께 제공되는 nginx/php7.3 가상 호스팅 운영 방법은 [nginx-vhost-php7.3] 에서 확인
+
+> 가상 호스팅, openproject, jenkins 모든 서비스를  도메인을 통해 단일 nginx 서버로 운영하고자 한다면
+  compose/full_service 폴더의 docker-compose.yml을 사용
 
 ## 서비스 특징
+ 
+> [OpenProject] : 프로젝트 관리 프로세스(PMI)를 지원 하는 오픈 소스 프로젝트 관리 소프트웨어
 
-> shell script를 이용해 nginx와 php의 conf 파일을 도메인마다 독립적으로 만들 수 있도록 제공
+> [Jenkins] : CI 툴 중 하나로 CI (Continuous Integration)는 개발자가 공유 버전 제어 저장소에서 
+  팀의 코드를 컴파일 할 수 있도록함으로써 빌드주기 비 효율성을 줄이기 위한 프로세스
 
-> nginx와 php의 모든 config 파일을 Docker-compose의 volumes으로 연동시켜 구동 전, 구동 후에도  
-  exec로 컨테이너에 들어가지 않고 제어가 가능함
-  
-> 해당 솔루션은 안전성의 문제로 mysql 등의 DB는 docker로 제공하지 않는다.  
-  이에 독립적인 서버가 운영되고 있다는 가정하여 3306 포트를 컨테이너에서 외부로 접근 할 수 있도록 설정한다.  
-  - 동일 서버에 설치하고 ip 혹은 서브 도메인 등으로 접근하는 방법을 사용할 것을 
-  
-> 단점으로는 상위와 같이 개별적인 conf를 작성하는것을 요구하다보니 독립적인 이미지로 만들기 어려움. 
+> nginx/php7.3 기반의 가상 호스팅, OpenProject, Jenkins를 개별 서버로 사용할 수 있고 
+  단일 nginx에 통합하여 사용할 수 있음
 
-> 만약 외부와의 연동을 배제하고 독립적인 이미지로 구축하고자 한다면 제공되는 shell script로 conf를 만들고  
-  Docker 혹은 Docker-compose 파일을 수정하여 컨테이너 내부에 복사하거나 스크립트를 수행하도록 만들면 된다.
-  
-  * 상위 단점에 제안하는 독립적인 Docker 이미지를 구축하는데 필요한 스크립트 및 방법은 따로 제공할 계획이 없다.
+> 예) test.com 도메인을 통해 a.test.com/ b.test/com 으로 가상 호스팅을 운영하고 
+      open.test.com으로 오픈프로젝트를 운영,
+      jen.test.com으로 jenkins를 운영할 수 있음
 
+## 사용 방법 (OpenProject) : 도메인 적용
 
-## 사용 방법
-
-1. web site 운영시 소스코드를 저장할 홈 폴더를 생성한다.
-```
-www 폴더 밑에 원하는 폴더명으로 생성한다
-
-예시 : /www/home_test
-```
-
-
-2. nginx 관련 conf 파일 생성
+1. OpenProject 사용시 이벤트를 메일로 보내기 위해 메일 계정 정보를 필수로 요구함
 
 ```
-config 폴더에서 nginx_conf.sh, php_conf.sh 파일을 사용하여 각각의 conf 파일을 생성한다.  
-nginx conf 파일은 conf.d에 자동으로 생성되고  
-php conf 파일은 pool.d에 자동으로 생성된다.
+본인은 mailgun을 사용함
+
+compose/nginx_openproject 폴더의 docker-compose.yml 파일에 다음과 같은 항목이 있으며  
+주석에 맞게 정보를 변경해야 함
+
+environment:
+      EMAIL_DELIVERY_METHOD: smtp
+      SMTP_ADDRESS: smtp.mailgun.org #해당 위치 정보 입력 mailgun 사용시 동일하게 유지
+      SMTP_PORT: 587
+      SMTP_DOMAIN: "test.com" #해당 위치 정보 입력
+      SMTP_AUTHENTICATION: login
+      SMTP_ENABLE_STARTTLS_AUTO: "true"
+      SMTP_USER_NAME: "test@test.com" #계정 정보
+      SMTP_PASSWORD: "1234567890067655abcdefgh" #key 정보
 ```
+
+2. log의 supervisor 폴더가 volumes 로 연동되어있어 log 파일을 실시간 확인 가능
+
+3. config 폴더의 nginx_proxy_conf.sh 파일을 사용하여 nginx의 proxy 연결을 위한 conf 파일 생성
 
 ```sh
-nginx_conf.sh 파일 내용은 다음과 같다.
-해당 스크립트는 sample_nginx.conf 파일을 기반으로 입력한 변수를 적용시킨다.
+
+account : 식별할 수 있는 파일명, 로그 파일명
+domain : 연결할 도메인 명
+portnumber : 웹 서비스 포트
+realurl : 프록시로 연결될 주소 및 포트 정보
 
 #!/bin/bash
 
 account=$1
 domain=$2
 portnumber=$3
-phpport=$4
+realurl='http:\/\/'$4':'$5
 
-sed 's/account/'$account'/' sample_nginx.conf > $account'1'.temp
-sed 's/domain/'$domain'/g' $account'1'.temp > $account'2'.temp
-sed 's/portnumber;/'$portnumber';/' $account'2'.temp > $account'3'.temp
-sed 's/phpport/'$phpport'/' $account'3'.temp > ./conf.d/$account'_ng'.conf 
+sed 's/realurl;/'$realurl';/' sample_nginx_proxy.conf > $account'1'.temp
+sed 's/portnumber;/'$portnumber';/' $account'1'.temp > $account'2'.temp
+sed 's/domain/'$domain'/g' $account'2'.temp > ./conf.d/$account'_proxy_ng'.conf 
 
 rm *.temp
 ```
 
 ```sh
-사용 방법은 다음과 같다  
-nginx_conf.sh 'web-site 홈 폴더명' '도메인' 'web 포트넘버 : 기본 80' 'php 포트넘버 : 기본 9000'  
-nginx_conf.sh home_test home.com 80 9000
+사용 예시 
+nginx_proxy_conf.sh '파일명 & 로그파일명' '도메인' '웹 서비스 포트' 'docker 컨테이너 이름' 'docker 컨테이너 서비스 포트'
+예시) nginx_proxy_conf.sh open_test open.test.com 80 jenkins 8080
+
+결과물 
+open_test_proxy_ng.conf
 ```
 
-3. php 관련 conf 파일 생성
+3. 방화벽 설정
 
 ```sh
-php_conf.sh 파일 내용은 다음과 같다.
-해당 스크립트는 sample_php.conf 파일을 기반으로 입력한 변수를 적용시킨다.
+ufw를 사용하고 있는 경우 80과 443 포트를 열어줌
+예) ufw allow 80/tcp
+    ufw allow 443/tcp
+```
+
+4. Docker-compose 실행
+
+```sh
+compose/nginx_openproject 폴더 위치로 이동하여 docker-compose.yml 파일이 있는 곳에서
+docker-compose up -d 실행
+```
+
+## 사용 방법 (Jenkins) 1 : ip 접근
+
+```sh
+compose/nginx_jenkins 폴더에서 docker-compose up -d 실행
+
+ip:8100 으로 접근 가능
+
+* 방화벽 수정 : 예) ufw allow 8100/tcp
+
+```
+
+## 사용 방법 (Jenkins) 2 : 도메인 접근
+
+1. config 폴더의 nginx_proxy_conf.sh 파일을 사용하여 nginx의 proxy 연결을 위한 conf 파일 생성
+
+```sh
+
+account : 식별할 수 있는 파일명, 로그 파일명
+domain : 연결할 도메인 명
+portnumber : 웹 서비스 포트
+realurl : 프록시로 연결될 주소 및 포트 정보
 
 #!/bin/bash
 
 account=$1
-port=$2
+domain=$2
+portnumber=$3
+realurl='http:\/\/'$4':'$5
 
-
-sed 's/account/'$account'/' sample_php.conf > $account'1'.temp
-sed 's/port/'$port'/' $account'1'.temp > ./pool.d/$account'_php'.conf
+sed 's/realurl;/'$realurl';/' sample_nginx_proxy.conf > $account'1'.temp
+sed 's/portnumber;/'$portnumber';/' $account'1'.temp > $account'2'.temp
+sed 's/domain/'$domain'/g' $account'2'.temp > ./conf.d/$account'_proxy_ng'.conf 
 
 rm *.temp
 ```
 
 ```sh
-사용 방법은 다음과 같다  
-nginx_conf.sh 'web-site 홈 폴더명' 'php 포트넘버 : 기본 9000'  
-nginx_conf.sh home_test 9000
+사용 예시 
+nginx_proxy_conf.sh '파일명 & 로그파일명' '도메인' '웹 서비스 포트' 'docker 컨테이너 이름' 'docker 컨테이너 서비스 포트'
+예시) nginx_proxy_conf.sh open_test open.test.com 80 jenkins 8080
+
+결과물 
+open_test_proxy_ng.conf
 ```
 
-4. nginx와 php 기본 설정 conf 파일 중 수정할게 있으면 파일을 변경한다  
+3. 방화벽 설정
 
-```
-fastcgi, nginx_conf, php_ini 폴더에 각각의 파일이 있음
-```
-
-5. log 폴더에 nginx log가 생성되기 때문에 컨테이너에 들어가지 않아도 실시간 확인이 가능함
-
-6. 우분투의 경우 방화벽에서 80포트와 3306포트를 개방한다. 
-
-```
-ufw allow 80/tcp  
-ufw allow 3306/tcp
+```sh
+ufw를 사용하고 있는 경우 80과 443 포트를 열어줌
+예) ufw allow 80/tcp
+    ufw allow 443/tcp
 ```
 
-7. docker-compose 실행
+4. Docker-compose 실행
 
+```sh
+compose/nginx_openproject 폴더 위치로 이동하여 docker-compose.yml 파일이 있는 곳에서
+docker-compose up -d 실행
 ```
-폴더 최상위 docker-compose.yml 파일 위치에서 docker-compose up -d 실행
-```
+
 
 ## 사용 예제
 
@@ -122,7 +165,15 @@ ufw allow 3306/tcp
 
 ## 업데이트 내역
 
-* 0.1.0 : 안정화 버전 완료 / 이후 성능 향상을 위해 nginx 및 php conf 파일들을 커스터 할 예정
+* 0.1.0 : 안정화 버전 완료  
+
+* 차후 업데이트 계획 :   
+  - OpenObject와 젠킨스의 DB를 docker-compose.yml의 volumes 설정으로 컨테이너의 문제 발생시 데이터 복구 방안 제공
+  - OpenObject와 젠킨스의 DB를 외부에서 운영할 수 있도록 기존 docker 설정 업데이트 
+ 
+## 신규 repository 계획
+ - git-server, docker-image의 독립 서버들을 결합하여 신규 repository로 제공 예정  
+ - 독립서버, aws, gcp 기반에 대한 각각의 쿠버네티스 기능을 탑제하여 신규 repository로 제공 예정  
     
 
 ## 멤버
@@ -131,8 +182,6 @@ ufw allow 3306/tcp
 
 <!-- Markdown link & img dfn's -->
 [docker-install]: https://hcnam.tistory.com/25 
-[npm-url]: https://npmjs.org/package/datadog-metrics
-[npm-downloads]: https://img.shields.io/npm/dm/datadog-metrics.svg?style=flat-square
-[travis-image]: https://img.shields.io/travis/dbader/node-datadog-metrics/master.svg?style=flat-square
-[travis-url]: https://travis-ci.org/dbader/node-datadog-metrics
-[wiki]: https://github.com/yourname/yourproject/wiki
+[nginx-vhost-php7.3]: https://github.com/bluebamus/nginx-vhost-php7.3
+[OpenProject]: http://wiki.webnori.com/display/pms/Open+Project+7
+[Jenkins]: https://jjeongil.tistory.com/810
