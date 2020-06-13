@@ -7,16 +7,16 @@ services:
     volumes:
         - ../../../www:/www
         - ../../../script/:/script/
-        - ../../../bin/certbot-auto:/usr/local/bin/certbot-auto
         - ../../../config/web-server/nginx/uwsgi/sites-available/:/etc/nginx/sites-available/
         - ../../../config/web-server/nginx/uwsgi/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
         - ../../../config/web-server/nginx/uwsgi/uwsgi_params/uwsgi_params:/etc/nginx/uwsgi_params
-        - ../../../ssl/letsencrypt/:/etc/letsencrypt/
-        - ../../../ssl/ssl/:/etc/ssl/
+        - ../../../ssl/:/ssl/
         - ../../../log:/log
     ports:
         - "80:80"
         - "443:443"
+    environment:
+        TZ: "Asia/Seoul"
     restart: always
 
 
@@ -30,4 +30,6 @@ services:
         - ../../../log:/log
     command:
         - /tmp/run.sh
+    environment:
+        TZ: "Asia/Seoul"
     restart: always
