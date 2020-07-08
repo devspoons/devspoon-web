@@ -176,7 +176,6 @@ Af you want to use python and php service at same time, this solution can help y
 
 * User can access using defined folders in docker-compose.yml
 
-      ```
       Example -> nginx container has volumes like below that
             
       /www
@@ -187,22 +186,18 @@ Af you want to use python and php service at same time, this solution can help y
       /ssl/
       /log
 
-      If user run containers at same server, can update code and move files directly from local server folder to container folder. 
-      ```
+      If user run containers at same server, can update code and move files directly from local server folder to container folder.       
 
 * If user use firewall, have to add required port number (refer each docker-compose.yml files)
 
-      ```
       Example
 
       ufw allow 80/tcp
       ufw allow 3306/tcp
-      ```
 
 ## Setting up HTTPS on a web server
 * This step requires running http nginx server
 
-      ```
       1. There are letsencrypt.sh shell script file in script folder and it interlocked by volumes.
       So user can access script file in a nginx container.
 
@@ -218,7 +213,7 @@ Af you want to use python and php service at same time, this solution can help y
       6. User have to remove http conf file in config/web-server/<service>/conf.d/
 
       7. Run "docker-compose up" command in the compose folder
-      ```
+
 
 ## Community
 
