@@ -1,10 +1,10 @@
 # devspoon-web
-This open source project offer docker that three kind of web service solutions by php-7.3, gunicorn, uwsgi based on nginx server.
-Anyone can install web services easily using docker and docker-compose.
+This open source project offer docker that three kind of web service solutions by php-7.3, gunicorn, uwsgi based on nginx server.  
+Anyone can install web services easily using docker and docker-compose.  
 Af you want to use python and php service at same time, this solution can help you better.
 
-이 오픈소스 프로젝트는 nginx 서버를 기반으로 한 PHP, gunicorn, uwsgi의 세 가지 웹 서비스 솔루션을 docker로 제공합니다.
-누구나 docker 및 docker-compose를 사용하여 웹 서비스를 쉽게 설치할 수 있습니다.
+이 오픈소스 프로젝트는 nginx 서버를 기반으로 한 PHP, gunicorn, uwsgi의 세 가지 웹 서비스 솔루션을 docker로 제공합니다.  
+누구나 docker 및 docker-compose를 사용하여 웹 서비스를 쉽게 설치할 수 있습니다.  
 파이썬과 PHP 서비스를 동시에 사용하려면이 솔루션이 더 도움이 될 수 있습니다.
 
 ## Features
@@ -227,12 +227,15 @@ Af you want to use python and php service at same time, this solution can help y
 
 ## Partners and Users
 
-Lim Do-Hyun Owner Developer/project Manager, bluebamus@gmail.com
+* Lim Do-Hyun Owner Developer/project Manager, bluebamus@gmail.com  
+Personal github.io : [bluebamus.github.io]
 
-임도현 Owner 개발자/기획자, bluebamus@gmail.com
+* 임도현 Owner 개발자/기획자, bluebamus@gmail.com  
+개인 github.io 사이트 : [bluebamus.github.io]
 
 <!-- Markdown link & img dfn's -->
 [devspoon.github.io]: https://github.com/devspoons/devspoon.github.io
 [wiki]: https://github.com/yourname/yourproject/wiki
 [youtube]: https://www.youtube.com/
 [inflearn]: https://www.inflearn.com/
+[bluebamus.github.io]: bluebamus.github.io
