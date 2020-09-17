@@ -21,7 +21,7 @@ do
     fi
 done 
 
-p_num=$(grep -c processor /proc/cpuinfo)
+p_num=$(grep -c processor /proc/cpuinfo) * 2
 
 if [[ "$p_num" == "" ]]; then
     echo "this job can't access /proc/cpuinfo. so process number be setting as 4."
