@@ -3,7 +3,7 @@ services:
   webserver:
     image: nginx:latest
     working_dir: /application
-    container_name: nginx-php-webserver      
+    container_name: nginx-uwsgi-webserver      
     volumes:
         - ../../../www:/www
         - ../../../script/:/script/
