@@ -13,5 +13,3 @@ done
 
 
 sed 's/project_path/'$project_path'/g' sample_run > run.sh
-
-rm *.temp
