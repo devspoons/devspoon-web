@@ -21,7 +21,7 @@ do
     fi
 done 
 
-p_num=$(grep -c processor /proc/cpuinfo) * 2
+let p_num=$(grep -c processor /proc/cpuinfo)*2
 
 if [[ "$p_num" == "" ]]; then
     echo "this job can't access /proc/cpuinfo. so process number be setting as 4."
@@ -29,6 +29,8 @@ if [[ "$p_num" == "" ]]; then
 fi
 
 th_num=$p_num
+
+echo "process number is $p_num and thread number is $th_num "
 
 while :
 do 
