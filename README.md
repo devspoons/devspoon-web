@@ -67,11 +67,12 @@ Af you want to use python and php service at same time, this solution can help y
       There are 2 shell script
       Use "chmod +x xxxx.sh" command, you activate shell script and run. then it make conf file
       nginx's a conf file will be in conf.d folder
+      if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
       ```
 
       ```
       Shell script required informations like bellow
-      webroot : ex -> /www/xxxx 
+      webroot : ex -> shop_kings
       domain : ex -> xxxx.com
       portnumber : ex -> 80
       appname : ex -> php-app (user must be use "container name" referenced in docker-compose.yml file)
@@ -97,17 +98,18 @@ Af you want to use python and php service at same time, this solution can help y
     
 ### Gunicorn service
 ***
-   * **Municorn service installation [nginx for gunicorn]**
+   * **Gunicorn service installation [nginx for gunicorn]**
       ```
       In config/web-server/gunicorn
       There are 2 shell script
       Use "chmod +x xxxx.sh" command, you activate shell script and run.sh then it make conf file
       nginx's a conf file will be in conf.d folder
+      * if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
       ```
 
       ```
       Shell script required informations like bellow
-      webroot : ex -> /www/xxxx 
+      webroot : ex -> shop_kings 
       domain : ex -> xxxx.com
       portnumber : ex -> 80
       appname : ex -> gunicorn-app (user must be use "container name" referenced in docker-compose.yml file)
@@ -120,15 +122,13 @@ Af you want to use python and php service at same time, this solution can help y
       ```
       * If user want to use config.py, user have to modify run.sh file in docker/gunicorn/
       In docker/gunicorn/
-      There are 1 shell script, run.sh
 
-      And user have to consider two lines
+      Dockerfile required run.sh file to start gunicorn service in a container 
+      There are 2 shell script, make_run.sh and run.sh in /docker/gunicorn
 
-      1) cd /www/py37/django_test/repo 
-      #User have to move work directory to the project root
-
-      2) gunicorn --workers 4 --bind 0.0.0.0:8000 conf.wsgi:application --daemon --reload 
-      #User have to consider service port number and worker (cpu core * 2)
+      if you want to use sample project django_test in /www/py37, you can use run.sh.
+      if you want to use new project, you must make run.sh using make_run.sh
+      * when you input the path, considered "\\/www\\/shop\\/shop_kings
       ```
 
    * **Run docker-compose.yml**
@@ -145,11 +145,12 @@ Af you want to use python and php service at same time, this solution can help y
       There are 2 shell script
       Use "chmod +x xxxx.sh" command, you activate shell script and run.sh then it make conf file
       nginx's a conf file will be in conf.d folder
+      * if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
       ```
 
       ```
       Shell script required informations like bellow
-      webroot : ex -> /www/xxxx 
+      webroot : ex -> shop_kings 
       domain : ex -> xxxx.com
       portnumber : ex -> 80
       appname : ex -> uwsgi-app (user must be use "container name" referenced in docker-compose.yml file)
@@ -161,11 +162,19 @@ Af you want to use python and php service at same time, this solution can help y
 
       ```
       In config/app-server/uwsgi
-      There are a file named uwsgi.ini
-
-      Referred comment, user can modify project root path, port number etc
-      * There are sample project in www/py37/ folder. user can referenced it
+      There are a file of uwsgi_conf.sh
+      you can make uwsgi.ini using this shell script file
       ```
+
+      ```
+      Dockerfile required run.sh file to start gunicorn service in a container 
+      There are 2 shell script, make_run.sh and run.sh in /docker/uwsgi
+
+      if you want to use sample project django_test in /www/py37, you can use run.sh.
+      if you want to use new project, you must make run.sh using make_run.sh
+      * when you input the path, considered "\\/www\\/shop\\/shop_kings
+      ```
+
 
    * **Run docker-compose.yml**
       ```
