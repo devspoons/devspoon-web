@@ -1,4 +1,4 @@
-version: "3"
+ㅈversion: "3"
 services:
   webserver:
     image: nginx:latest
@@ -33,7 +33,7 @@ services:
           max-file: "5"
           max-size: "100m"
     working_dir: /application
-    container_name: php-app     
+    container_name: php-app
     volumes:
         - ../../../www:/www
         - ../../../config/app-server/php/pool.d/:/etc/php/7.3/fpm/pool.d
