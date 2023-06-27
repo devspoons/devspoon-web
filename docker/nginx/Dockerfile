@@ -27,9 +27,7 @@ RUN	\
     BUILD_DEPS='software-properties-common wget gnupg' \
     && apt-get install --no-install-recommends -y $BUILD_DEPS \
     && apt-get install -y sendmail \
-    && apt-get install -y cron certbot \
-    && apt-get install ca-certificates \
-    && update-ca-certificates
+    && apt-get install -y cron certbot
 # Cleaning
 
 RUN crontab -l | { cat; echo "0 5 * * 1 certbot renew --quiet --renew-hook \"service nginx restart\" > /log/nginx/crontab_$(date +\%Y\%m\%d).log 2>&1"; } | crontab -
