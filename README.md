@@ -238,7 +238,7 @@ Af you want to use python and php service at same time, this solution can help y
 
 ## Community
 
-- **Website :** Owner's personal website is [devspoon.com](devspoon.com)
+- **Website** : Owner's personal website is [devspoon.com](devspoon.com)
 
 ## Partners and Users
 
