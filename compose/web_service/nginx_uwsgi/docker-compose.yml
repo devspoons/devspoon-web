@@ -66,7 +66,8 @@ services:
     depends_on:
       - redis
       - uwsgi-app
-      - db
+    profiles:
+      - celery
 
   celery-beat:
     build: ../../../docker/uwsgi/
@@ -91,6 +92,8 @@ services:
     restart: always
     depends_on:
       - celery
+    profiles:
+      - celery
 
   flower:
     image: mher/flower:master
@@ -107,6 +110,8 @@ services:
     restart: always
     depends_on:
       - celery-beat
+    profiles:
+      - celery
 
   redis:
     image: redis:latest
@@ -145,3 +150,5 @@ services:
     depends_on:
       - redis
     restart: always
+    profiles:
+      - redis
