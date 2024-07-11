@@ -1,4 +1,4 @@
-FROM romeoz/docker-phpfpm:latest
+FROM romeoz/docker-phpfpm:7.3
 
 ENV OS_LOCALE_COUNTRY="en_US"
 ENV OS_LOCALE_ENCODING="UTF-8"

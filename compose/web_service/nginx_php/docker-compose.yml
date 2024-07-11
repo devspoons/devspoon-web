@@ -1,4 +1,4 @@
-version: "3"
+version: "3.9"
 services:
   webserver:
     build: ../../../docker/nginx/
@@ -64,6 +64,8 @@ services:
       TZ: "Asia/Seoul"
     restart: always
     command: redis-server /usr/local/etc/redis/redis.conf
+    profiles:
+      - redis
 
   redis-stats:
     image: insready/redis-stat:latest
@@ -81,3 +83,5 @@ services:
     depends_on:
       - redis
     restart: always
+    profiles:
+      - redis
