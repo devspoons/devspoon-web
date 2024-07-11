@@ -89,6 +89,7 @@ Af you want to use python and php service at same time, this solution can help y
        ```
        Get move to compose/nginx_php
        Execute docker-compose.yml using "docker-compose up -d" command
+       If you want to run redis, redis-stats, use "docker-compose --profile redis up -d".
        ```
 
    - Gunicorn service
@@ -131,7 +132,10 @@ Af you want to use python and php service at same time, this solution can help y
 
        ```
        Get move to compose/nginx_gunicorn
-       Execute docker-compose.yml using "docker-compose up -d" command
+       Run docker-compose.yml using the “docker-compose up -d” command.
+       If you want to run celery, celerybeat, and flower, use "docker-compose --profile celery up -d".
+       If you want to run redis-stats, use "docker-compose --profile redis up -d".
+       To run all services, use "docker-compose --profile celery --profile redis up -d".
        ```
 
    - UWSGI service
@@ -177,6 +181,9 @@ Af you want to use python and php service at same time, this solution can help y
        ```
        Get move to compose/nginx_uwsgi
        Execute docker-compose.yml using "docker-compose up -d" command
+       If you want to run celery, celerybeat, and flower, use "docker-compose --profile celery up -d".
+       If you want to run redis-stats, use "docker-compose --profile redis up -d".
+       To run all services, use "docker-compose --profile celery --profile redis up -d".
        ```
 
 ## How to develop based on working server
