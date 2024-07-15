@@ -37,7 +37,7 @@ services:
     volumes:
       - ../../../www:/www
       - ../../../log:/log
-    command: bash -c "poetry config virtualenvs.create false && poetry install --no-root --without test && daphne -p 8000 -b 0.0.0.0 --websocket_timeout 60 --websocket_connect_timeout 20 -v 2 -t 120 --access-log /log/uvicorn/daphne.log --ping-interval 20 --ping-timeout 30 --application-close-timeout 30 --root-path /www/devspoon-portfolio-blog/ -s config config.asgi:application"
+    command: bash -c "poetry config virtualenvs.create false && poetry install --no-root --without test && daphne -p 8000 -b 0.0.0.0 --websocket_timeout 60 --websocket_connect_timeout 20 -v 2 -t 120 --access-log /log/uvicorn/daphne.log --ping-interval 20 --ping-timeout 30 --application-close-timeout 30 -s config config.asgi:application"
     environment:
       TZ: "Asia/Seoul"
     restart: always
