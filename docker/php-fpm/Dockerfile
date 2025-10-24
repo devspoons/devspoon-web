@@ -7,6 +7,17 @@ ENV OS_LOCALE="en_US.UTF-8"
 RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apt-utils
 
+ENV TZ="Asia/Seoul"
+
+RUN apt-get install -yq tzdata && \
+    dpkg-reconfigure -f noninteractive tzdata
+
+# curl/wget/git
+RUN apt-get install -y curl wget git tar
+
+# vim
+RUN apt-get install -y vim
+
 RUN apt-get install -y --no-install-recommends locales
 
 RUN localedef -i ${OS_LOCALE_COUNTRY} -f ${OS_LOCALE_ENCODING} ${OS_LOCALE}
@@ -24,8 +35,6 @@ RUN	\
 
 RUN apt-get install -yq tzdata && \
     dpkg-reconfigure -f noninteractive tzdata
-
-ENV TZ="Asia/Seoul"
 
 RUN apt-get purge -y --auto-remove software-properties-common wget gnupg \
     && apt-get autoremove -y && apt-get clean \
