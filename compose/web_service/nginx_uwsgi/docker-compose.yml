@@ -39,7 +39,8 @@ services:
       - ../../../config/app-server/uwsgi/uwsgi.ini:/application/uwsgi.ini
       - ../../../log:/log
       - ../../../script/logrotate/uwsgi/uwsgi:/etc/logrotate.d/uwsgi
-    command: bash -c "poetry config virtualenvs.create false && poetry install --no-root --without test && uwsgi --ini /application/uwsgi.ini"
+    command: bash -c "poetry config virtualenvs.create false && poetry install --no-root --without test && exec uwsgi --ini /application/uwsgi.ini"
+    # command: bash -c "uv sync --system --frozen --no-dev && exec uwsgi --ini /application/uwsgi.ini"
     environment:
       TZ: "Asia/Seoul"
     restart: always
@@ -59,9 +60,13 @@ services:
       - ../../../script/logrotate/uwsgi/celery/uwsgi-celery:/etc/logrotate.d/uwsgi-celery
     command: bash -c "poetry config virtualenvs.create false && \
       poetry install --no-root && \
-      celery -A config worker \
+      exec celery -A config worker \
       --loglevel=INFO \
-      --logfile=/log/uwsgi/celery/worker-%n%I.log "
+      --logfile=/log/uwsgi/celery/worker-%n%I.log"
+    # command: bash -c "uv sync --system --frozen --no-dev && \
+    #   exec celery -A config worker \
+    #   --loglevel=INFO \
+    #   --logfile=/log/uwsgi/celery/worker-%n%I.log"
     environment:
       TZ: "Asia/Seoul"
     restart: always
@@ -89,7 +94,12 @@ services:
       celery -A config beat \
       --loglevel=INFO \
       --scheduler django_celery_beat.schedulers:DatabaseScheduler \
-      --logfile=/log/uwsgi/celerybeat/celerybeat.log "
+      --logfile=/log/uwsgi/celerybeat/celerybeat.log"
+    # command: bash -c "uv sync --system --frozen --no-dev && \
+    #   exec celery -A config beat \
+    #   --loglevel=INFO \
+    #   --scheduler django_celery_beat.schedulers:DatabaseScheduler \
+    #   --logfile=/log/uwsgi/celerybeat/celerybeat.log"
     environment:
       TZ: "Asia/Seoul"
     restart: always
