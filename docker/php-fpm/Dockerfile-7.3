@@ -1,0 +1,50 @@
+# =============================================================================
+# PHP 7.3 FPM 이미지 (legacy)
+# - 베이스: romeoz/docker-phpfpm:7.3 (Debian)
+# - 멀티버전 경로(/etc/php/7.3/fpm) 컨벤션 유지 (8.4 와 디렉터리 구조 다름)
+# - tzdata 처리 패턴은 gunicorn/uwsgi/nginx/8.4 Dockerfile 과 동일하게
+#   `ln -snf + echo > /etc/timezone` 으로 통일 (dpkg-reconfigure 미사용)
+# =============================================================================
+FROM romeoz/docker-phpfpm:7.3
+
+ENV OS_LOCALE_COUNTRY="en_US" \
+    OS_LOCALE_ENCODING="UTF-8" \
+    OS_LOCALE="en_US.UTF-8" \
+    TZ="Asia/Seoul" \
+    DEBIAN_FRONTEND=noninteractive
+
+# ============================================================================
+# 1. 시스템 도구 / 타임존 / locale / 메일 / cron / logrotate 단일 레이어
+#    - apt-get update + install + cleanup 한 RUN 으로 묶어 layer 수 / 이미지 크기 절감
+#    - tzdata: ln -snf + echo 패턴으로 통일 (dpkg-reconfigure 제거)
+#    - software-properties-common / wget / gnupg 은 더 이상 사용처가 없어 미설치
+# ============================================================================
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        apt-utils \
+        tzdata \
+        ca-certificates \
+        locales \
+        curl wget git tar vim \
+        sendmail \
+        cron logrotate && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone && \
+    localedef -i ${OS_LOCALE_COUNTRY} -f ${OS_LOCALE_ENCODING} ${OS_LOCALE} && \
+    update-ca-certificates && \
+    apt-get autoremove -y && apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ENV LANG=${OS_LOCALE} \
+    LANGUAGE=${OS_LOCALE} \
+    LC_ALL=${OS_LOCALE} \
+    LC_CTYPE=${OS_LOCALE} \
+    LC_MESSAGES=${OS_LOCALE}
+
+# ============================================================================
+# 2. ENTRYPOINT — cron 백그라운드 기동 후 php-fpm 실행 (8.4 와 공용 스크립트)
+# ============================================================================
+COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron
+RUN chmod +x /usr/local/bin/entrypoint-with-cron
+ENTRYPOINT ["/usr/local/bin/entrypoint-with-cron"]
+CMD ["php-fpm", "--nodaemonize"]

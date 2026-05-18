@@ -4,7 +4,10 @@ my_array=()
 delimiter="-d"
 domain_string=""
 
-apt-get update  &&  apt-get install -y sendmail wget vim cron certbot python3-certbot-nginx ca-certificates
+# cron / certbot / python3-certbot-nginx / ca-certificates 는 nginx Dockerfile 에서 설치된다.
+# 이 스크립트는 컨테이너 내부에서 1회성 초기 발급용으로 실행되므로 추가 설치는 불필요.
+# 외부 호스트에서 단독 실행 시에는 아래 라인의 주석을 해제해서 사용한다.
+# apt-get update && apt-get install -y sendmail wget vim cron certbot python3-certbot-nginx ca-certificates
 while :
 do 
     echo -n "Enter the service webroot_folder >"
@@ -88,4 +91,7 @@ if ! test -d /etc/letsencrypt/${my_array[0]}/letsencrypt ; then
 #     cp /ssl/letsencrypt/$domain/ /etc/letsencrypt/ -r
 fi
 
-cat <(crontab -l) <(echo '0 5 * * 1 certbot renew --quiet --deploy-hook "service nginx restart" > /log/nginx/crontab_renew.log 2>&1') | crontab -
+# certbot 자동 갱신 cron 은 nginx Dockerfile 에 이미 등록되어 있다.
+# 컨테이너 안에서는 'nginx -s reload' (master 프로세스에 SIGHUP 전송, graceful reload) 가 정답이며
+# 'service nginx restart' 는 PID 1 = nginx 인 컨테이너에서는 동작하지 않거나 의도치 않은 재시작을 유발하므로 사용 금지.
+# → 중복/충돌 방지를 위해 letsencrypt.sh 의 crontab 자동 등록 라인은 의도적으로 삭제.

@@ -1,11 +1,23 @@
+# =============================================================================
+# nginx_uvicorn 스택
+#
+# - 동일 Python 앱 이미지 (devspoon-py-app:latest) 를 nginx_gunicorn / nginx_daphne
+#   와 공유한다. uvicorn variant = gunicorn 마스터 + UvicornWorker 이므로 별도 이미지
+#   불필요. 본 스택에서는 uvicorn-app 만 build 정의를 두고 celery / celery-beat 는
+#   image 만 참조하여 재빌드를 피한다.
+# - 자격증명 fail-fast / redis healthcheck / 컨테이너명 기반 의존성 — nginx_gunicorn
+#   compose 와 동일 정책. 자세한 설명은 그 파일을 참조.
+# =============================================================================
+
 services:
   webserver:
     build: ../../../docker/nginx/
-    logging:
-      driver: "${LOG_DRIVER}"
+    image: devspoon-nginx:latest
+    logging: &log_opts
+      driver: "${LOG_DRIVER:-json-file}"
       options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+        max-file: "${LOG_OPT_MAXF:-5}"
+        max-size: "${LOG_OPT_MAXS:-100m}"
     working_dir: /application
     container_name: nginx-uvicorn-webserver
     volumes:
@@ -24,14 +36,17 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # ulimits — 의도적으로 비활성화 상태. 활성화 절차는 .env 의
+    # ULIMIT_NOFILE_SOFT / ULIMIT_NOFILE_HARD 와 nginx_gunicorn compose 의 동일 블록 참조.
+    # ulimits:
+    #   nofile:
+    #     soft: ${ULIMIT_NOFILE_SOFT:-65535}
+    #     hard: ${ULIMIT_NOFILE_HARD:-65535}
 
   uvicorn-app:
     build: ../../../docker/gunicorn/
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+    image: devspoon-py-app:latest
+    logging: *log_opts
     working_dir: /www/${PROJECT_DIR}
     container_name: uvicorn-app
     volumes:
@@ -39,101 +54,87 @@ services:
       - ../../../log:/log
       - ../../../config/app-server/uvicorn/:/uvicorn
       - ../../../script/logrotate/uvicorn/uvicorn:/etc/logrotate.d/uvicorn
-    command: bash -c "poetry config virtualenvs.create false && poetry install --no-root --without test && exec gunicorn -c /uvicorn/gunicorn_uvicorn.conf.py"
-    # command: bash -c "uv pip install --system --no-cache . && exec gunicorn -c /uvicorn/gunicorn_uvicorn.conf.py"
+    # uv 네이티브 흐름 — uvicorn extra 가 gunicorn 도 포함 (gunicorn + UvicornWorker).
+    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && exec gunicorn -c /uvicorn/uvicorn.conf.py"
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
 
+  # CELERY_BROKER_URL 은 REDIS_PASSWORD 로부터 합성 (SSOT) — drift 차단.
+  # 자세한 설명은 nginx_gunicorn/docker-compose.yml 참조.
   celery:
-    build: ../../../docker/gunicorn/
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+    image: devspoon-py-app:latest
+    logging: *log_opts
     working_dir: /www/${PROJECT_DIR}
     container_name: celery-app
     volumes:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/uvicorn/celery/uvicorn-celery:/etc/logrotate.d/uvicorn-celery
-    command: bash -c "poetry config virtualenvs.create false && \
-      poetry install --no-root && \
+    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && \
       exec celery -A config worker \
       --loglevel=INFO \
+      --concurrency=8 \
+      --max-tasks-per-child=2000 \
       --logfile=/log/uvicorn/celery/worker-%n%I.log"
-    # command: bash -c "uv pip install --system --no-cache . && \
-    #   exec celery -A config worker \
-    #   --loglevel=INFO \
-    #   --logfile=/log/uvicorn/celery/worker-%n%I.log"
     environment:
       TZ: "Asia/Seoul"
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/3
     restart: always
     depends_on:
-      - redis
-      - gunicorn-uvicorn-app
+      redis:
+        condition: service_healthy
+      uvicorn-app:
+        condition: service_started
     profiles:
       - celery
 
   celery-beat:
-    build: ../../../docker/gunicorn/
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+    image: devspoon-py-app:latest
+    logging: *log_opts
     working_dir: /www/${PROJECT_DIR}
     container_name: celerybeat-app
     volumes:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/uvicorn/celerybeat/uvicorn-celerybeat:/etc/logrotate.d/uvicorn-celerybeat
-    command: bash -c "poetry config virtualenvs.create false && \
-      poetry install --no-root && \
+    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && \
       exec celery -A config beat \
       --loglevel=INFO \
       --scheduler django_celery_beat.schedulers:DatabaseScheduler \
-      --logfile=/log/uvicorn/celerybeat/celerybeat.log "
-    # command: bash -c "uv pip install --system --no-cache . && \
-    #   exec celery -A config beat \
-    #   --loglevel=INFO \
-    #   --scheduler django_celery_beat.schedulers:DatabaseScheduler \
-    #   --logfile=/log/uvicorn/celerybeat/celerybeat.log"
+      --logfile=/log/uvicorn/celerybeat/celerybeat.log"
     environment:
       TZ: "Asia/Seoul"
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/3
     restart: always
     depends_on:
-      - celery
+      celery:
+        condition: service_started
     profiles:
       - celery
 
   flower:
-    image: mher/flower:master
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+    image: mher/flower:2.0.1
+    logging: *log_opts
     container_name: flower
     ports:
       - "5555:5555"
     environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - FLOWER_BASIC_AUTH=${FLOWER_ID}:${FLOWER_PWD}
+      - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/3
+      - FLOWER_BASIC_AUTH=${FLOWER_ID:?FLOWER_ID must be set}:${FLOWER_PWD:?FLOWER_PWD must be set}
     restart: always
     depends_on:
-      - celery-beat
+      celery-beat:
+        condition: service_started
     profiles:
       - celery
 
   redis:
-    image: redis:latest
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
+    image: redis:7.4-alpine
+    logging: *log_opts
     container_name: redis_db
     # ports:
     #   - 6379:6379
@@ -145,24 +146,14 @@ services:
       - "mode=standalone"
     environment:
       TZ: "Asia/Seoul"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
     restart: always
-    command: redis-server /usr/local/etc/redis/redis.conf
-
-  redis-stats:
-    image: insready/redis-stat:latest
-    logging:
-      driver: "${LOG_DRIVER}"
-      options:
-        max-file: "${LOG_OPT_MAXF}"
-        max-size: "${LOG_OPT_MAXS}"
-    container_name: redis-stats
-    ports:
-      - 63790:63790
-    command: ["--verbose", "--server", "redis:6379"]
-    environment:
-      TZ: "Asia/Seoul"
-    depends_on:
-      - redis
-    restart: always
-    profiles:
-      - redis
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s

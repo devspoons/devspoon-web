@@ -1,15 +1,68 @@
-[tool.poetry]
+[project]
 name = "django-sample"
 version = "0.1.0"
-description = ""
-authors = ["bluebamus <bluebamus@naver.com>"]
+description = "Devspoon-Web Django sample project"
 readme = "README.md"
+requires-python = ">=3.14"
+authors = [{ name = "bluebamus", email = "bluebamus@naver.com" }]
+license = { text = "MIT" }
 
-[tool.poetry.dependencies]
-python = "^3.12.4"
-django = "^5.0.3"
+# ----------------------------------------------------------------------------
+# 본 의존성은 Python 3.14 + 컨테이너 기준으로 산정. 원본 requirements.txt 의
+# Django==4.0.6 은 Python 3.13+ 에서 cgi 모듈 부재(PEP 594)로 실행 불가하므로
+# pyproject.toml 만 Django LTS(>=4.2, Python 3.14 호환) 로 끌어올렸다.
+# requirements.txt 는 사용자 요청대로 원본 그대로 보존(레거시 도구 호환용).
+#
+# 의존성 관리 — uv 네이티브 명령:
+#   uv add <package>          → 런타임 deps 추가 (pyproject.toml + uv.lock 자동 갱신)
+#   uv add --dev <package>    → 개발 deps 추가 ([dependency-groups] dev 로 들어감)
+#   uv lock                   → 락 파일만 재생성
+#   uv sync                   → 환경 동기화
+#
+# 컨테이너 안에서의 uv 설치 정책 (★ 중요):
+#   - docker/{gunicorn,uwsgi}/Dockerfile 에 UV_PROJECT_ENVIRONMENT=/usr/local 가 설정되어 있어
+#     컨테이너 안의 `uv sync` 는 **`.venv` 를 만들지 않고 시스템 Python(/usr/local) 에 직접 설치**한다.
+#   - 컨테이너 자체가 격리 단위 → 추가 가상환경 계층 불필요 (호스트 볼륨도 .venv 로 오염되지 않음).
+#   - `uv run` 없이 `python`, `gunicorn`, `celery` 등 시스템 바이너리를 직접 호출 가능 → 트러블슈팅 단순.
+#   - `--inexact` 플래그로 Dockerfile 이 사전 설치한 패키지(fastapi/sqlalchemy/wheel 등) 보존.
+#
+# 호스트(개발 머신) 에서는 UV_PROJECT_ENVIRONMENT 미설정 → 정상적으로 .venv 가 만들어진다.
+# ----------------------------------------------------------------------------
+dependencies = [
+    "asgiref>=3.8",
+    "Django>=5.1,<5.3",  # Python 3.14 호환. settings.py 가 Django 3.2 스타일이라 5.x 마이그레이션 부담 적음
+    "pytz",
+    "sqlparse>=0.5",
+]
 
+# ----------------------------------------------------------------------------
+# 앱 서버 / 워커 큐별 익스트라 — compose 의 `uv sync --extra <name>` 로 선택 설치.
+#
+# 주의: 동일 compose 스택의 app 컨테이너와 celery 컨테이너는 **반드시 같은 익스트라 조합** 으로
+# uv sync 를 수행해야 한다. 서로 다른 익스트라로 sync 하면 뒤에 실행된 컨테이너가
+# 앞 컨테이너의 패키지를 venv 에서 제거하는 race 가 발생한다.
+# ----------------------------------------------------------------------------
+[project.optional-dependencies]
+gunicorn = ["gunicorn>=22"]
+uvicorn  = ["gunicorn>=22", "uvicorn[standard]>=0.30"]
+daphne   = ["daphne>=4.1", "channels[daphne]>=4.1"]
+uwsgi    = ["uwsgi>=2.0"]
+celery   = ["celery>=5.4", "redis>=5"]
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+# ----------------------------------------------------------------------------
+# 개발 시 사용 (선택). `uv sync --dev` 또는 `uv add --dev <pkg>` 로 관리.
+# ----------------------------------------------------------------------------
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-django>=4",
+]
+
+# ----------------------------------------------------------------------------
+# uv 설정
+#  - package = false  : django-sample 자체를 패키지로 빌드/설치하지 않음 (Application 모드)
+#  - 결과: `uv sync` 는 의존성만 .venv 에 설치하고, 본 프로젝트는 import 가능한
+#    소스 트리로 둔 채 manage.py 가 직접 사용
+# ----------------------------------------------------------------------------
+[tool.uv]
+package = false

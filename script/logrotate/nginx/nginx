@@ -1,0 +1,21 @@
+# Nginx 로그 로테이션 설정
+# - 회전 방식: USR1 신호로 nginx master 가 로그 파일 재오픈 (postrotate)
+#              copytruncate 미사용 — nginx 가 신호 처리에 안전하므로 손실 0건
+# - 컨테이너 환경에서 무중단 reload (worker 재시작 없음)
+/log/nginx/*.log {
+    daily
+    size 100M
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0640 nginx nginx
+    sharedscripts
+    postrotate
+        # Nginx 마스터 프로세스에 USR1 전송 — 로그 파일 재오픈
+        if [ -f /var/run/nginx.pid ]; then
+            kill -USR1 `cat /var/run/nginx.pid`
+        fi
+    endscript
+}

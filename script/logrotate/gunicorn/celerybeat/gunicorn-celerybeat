@@ -1,0 +1,13 @@
+# Gunicorn Celery Beat 로그 로테이션 설정
+# - copytruncate: Python logger 가 파일 핸들을 유지하므로 안전
+# - 다른 celery* 설정과 정합성 위해 size 100M 명시
+/log/gunicorn/celerybeat/*.log {
+    daily
+    size 100M
+    rotate 30
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}

@@ -1,0 +1,94 @@
+# =============================================================================
+# nginx + PHP 8.4 스택
+# - 베이스 이미지: php:8.4-fpm-bookworm (공식)
+# - 동시 실행 미지원: 80/443 포트는 PHP 7.3 stack 과 충돌하므로 택일 운용한다.
+# - nginx 설정(conf.d / nginx.conf / fastcgi_params / proxy_params)은
+#   7.3 stack 과 동일 폴더(config/web-server/nginx/php) 를 공유한다.
+#   (PHP 버전 의존 항목이 없어 clone 불필요)
+# - 공식 php:8.4-fpm 이미지의 단일 경로 컨벤션을 따라 mount destination 이
+#   /usr/local/etc/php-fpm.d 및 /usr/local/etc/php/php.ini 로 매핑된다.
+# - redis 는 protected-mode yes + requirepass 정책을 Python 스택과 통일.
+# =============================================================================
+
+services:
+  webserver:
+    build: ../../../docker/nginx/
+    image: devspoon-nginx:latest
+    logging: &log_opts
+      driver: "${LOG_DRIVER:-json-file}"
+      options:
+        max-file: "${LOG_OPT_MAXF:-5}"
+        max-size: "${LOG_OPT_MAXS:-100m}"
+    working_dir: /application
+    container_name: nginx-php-8.4-webserver
+    volumes:
+      - ../../../www:/www
+      - ../../../script/:/script/
+      - ../../../config/web-server/nginx/php/conf.d/:/etc/nginx/conf.d/
+      - ../../../config/web-server/nginx/php/proxy_params/proxy_params:/etc/nginx/proxy_params
+      - ../../../config/web-server/nginx/php/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
+      - ../../../config/web-server/nginx/php/fastcgi/fastcgi_params:/etc/nginx/fastcgi_params
+      - ./ssl/certs/:/etc/ssl/certs/
+      - ./ssl/letsencrypt/:/etc/letsencrypt/
+      - ../../../log/:/log/
+      - ../../../script/logrotate/nginx/nginx:/etc/logrotate.d/nginx
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      TZ: "Asia/Seoul"
+    restart: always
+    # ulimits — 의도적으로 비활성화 상태. 활성화 절차는 .env 의
+    # ULIMIT_NOFILE_SOFT / ULIMIT_NOFILE_HARD 와 nginx_gunicorn compose 의 동일 블록 참조.
+    # ulimits:
+    #   nofile:
+    #     soft: ${ULIMIT_NOFILE_SOFT:-65535}
+    #     hard: ${ULIMIT_NOFILE_HARD:-65535}
+
+  php-app:
+    build:
+      context: ../../../docker/php-fpm/
+      dockerfile: Dockerfile-8.4
+    image: devspoon-php-app:8.4
+    logging: *log_opts
+    working_dir: /application
+    container_name: php-app-8.4
+    volumes:
+      - ../../../www:/www
+      - ../../../config/app-server/php-8.4/pool.d/:/usr/local/etc/php-fpm.d
+      - ../../../config/app-server/php-8.4/php_ini/php.ini:/usr/local/etc/php/php.ini
+      - ../../../log:/log
+      - ../../../script/logrotate/php-fpm/php-fpm:/etc/logrotate.d/php-fpm
+    environment:
+      TZ: "Asia/Seoul"
+    restart: always
+
+  redis:
+    image: redis:7.4-alpine
+    logging: *log_opts
+    container_name: redis_db-8.4
+    # ports:
+    #   - 6379:6379
+    volumes:
+      - ./redis/data:/data
+      - ./redis/conf/:/usr/local/etc/redis/
+    labels:
+      - "name=redis"
+      - "mode=standalone"
+    environment:
+      TZ: "Asia/Seoul"
+      # redis.conf 의 protected-mode yes 와 짝을 이루는 requirepass 패스워드.
+      # healthcheck 의 redis-cli -a 가 본 변수를 사용 + command 의 --requirepass 주입에 사용.
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    restart: always
+    command: >
+      redis-server /usr/local/etc/redis/redis.conf
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    profiles:
+      - redis
