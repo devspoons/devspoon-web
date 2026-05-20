@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Generate per-domain HTTP nginx conf from sample_nginx.conf  (php-fpm stack)
+# Generate per-domain HTTP nginx conf from sample_nginx_http.conf (gunicorn stack)
 #
 # Usage (interactive):
-#   ./nginx_conf.sh
+#   ./nginx_http_conf.sh
 #
 # Usage (non-interactive):
-#   ./nginx_conf.sh --webroot foo --port 80 --domain example.com \
-#                   --appname php-app --serviceport 9000 --filename example.com
+#   ./nginx_http_conf.sh --webroot foo/bar --port 80 --domain example.com \
+#                        --appname gunicorn-app --serviceport 8000 --filename example.com
 #
-# Output: ./conf.d/<filename>_php_ng.conf
+# Output: ./conf.d/<filename>_gunicorn_ng_http.conf
+#   - 파일명 끝의 "_http" 는 HTTP-only 도메인 conf 임을 명시 (HTTPS 버전은
+#     별도 sample_nginx_https.conf / nginx_https_conf.sh 로 생성).
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SAMPLE="${SCRIPT_DIR}/sample_nginx.conf"
+SAMPLE="${SCRIPT_DIR}/sample_nginx_http.conf"
 OUT_DIR="${SCRIPT_DIR}/conf.d"
-SUFFIX="_php_ng"
+SUFFIX="_gunicorn_ng_http"
 
 webroot=""
 portnumber=""
@@ -26,6 +28,7 @@ serviceport=""
 filename=""
 force="0"
 
+# ----- argv -------------------------------------------------------------------
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --webroot)      webroot="$2"; shift 2;;
@@ -60,10 +63,11 @@ prompt_optional() {
 prompt_required webroot     "Service web root under /www/ (e.g. shop/myapp)"
 prompt_required portnumber  "Listen port (e.g. 80)"
 prompt_required domain      "Domain (e.g. example.com)"
-prompt_required appname     "Upstream service name (e.g. php-app)"
-prompt_optional serviceport "Upstream port (e.g. 9000)"
+prompt_required appname     "Upstream service name (e.g. gunicorn-app)"
+prompt_optional serviceport "Upstream port (e.g. 8000)"
 prompt_required filename    "Output filename base (e.g. example.com)"
 
+# ----- validation -------------------------------------------------------------
 [[ -f "$SAMPLE" ]] || { echo "Sample not found: $SAMPLE" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 
@@ -73,7 +77,10 @@ if [[ -e "$OUT_PATH" && "$force" != "1" ]]; then
     exit 1
 fi
 
+# ----- safe substitution (use a delimiter that cannot appear in inputs) -------
+# We escape '/' in webroot to be sed-safe, then use a non-conflicting delimiter.
 escape_sed() { printf '%s' "$1" | sed -e 's/[\/&|]/\\&/g'; }
+
 E_WEBROOT=$(escape_sed "$webroot")
 E_DOMAIN=$(escape_sed "$domain")
 E_APPNAME=$(escape_sed "$appname")
@@ -83,6 +90,7 @@ E_PORT=$(escape_sed "$portnumber")
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
+# Order matters: replace longer/more-specific tokens first to avoid partials
 sed -e "s|webroot|${E_WEBROOT}|g" \
     -e "s|appname|${E_APPNAME}|g" \
     -e "s|filename|${E_FILENAME}|g" \
@@ -91,6 +99,7 @@ sed -e "s|webroot|${E_WEBROOT}|g" \
     -e "s|domain|${E_DOMAIN}|g" \
     "$SAMPLE" > "$TMP"
 
+# serviceport: empty -> drop ":serviceport" (port omitted form), else replace
 if [[ -z "$serviceport" ]]; then
     sed -i 's|:serviceport||g' "$TMP"
 else
@@ -100,6 +109,7 @@ fi
 mv "$TMP" "$OUT_PATH"
 trap - EXIT
 
+# ----- optional nginx -t inside container if available ------------------------
 if command -v nginx >/dev/null 2>&1; then
     nginx -t 2>&1 || echo "WARNING: nginx -t failed. Inspect $OUT_PATH"
 fi

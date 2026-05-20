@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Generate per-domain HTTP nginx conf from sample_nginx.conf  (uwsgi stack)
+# Generate per-domain HTTP nginx conf from sample_nginx_http.conf (uwsgi stack)
 #
 # Usage (interactive):
-#   ./nginx_conf.sh
+#   ./nginx_http_conf.sh
 #
 # Usage (non-interactive):
-#   ./nginx_conf.sh --webroot foo --port 80 --domain example.com \
-#                   --appname uwsgi-app --serviceport 3031 --filename example.com
+#   ./nginx_http_conf.sh --webroot foo --port 80 --domain example.com \
+#                        --appname uwsgi-app --serviceport 3031 --filename example.com
 #
-# Output: ./conf.d/<filename>_uwsgi_ng.conf
+# Output: ./conf.d/<filename>_uwsgi_ng_http.conf
+#   - 파일명 끝의 "_http" 는 HTTP-only 도메인 conf 임을 명시 (HTTPS 버전은
+#     별도 sample_nginx_https.conf / nginx_https_conf.sh 로 생성).
 # =============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SAMPLE="${SCRIPT_DIR}/sample_nginx.conf"
+SAMPLE="${SCRIPT_DIR}/sample_nginx_http.conf"
 OUT_DIR="${SCRIPT_DIR}/conf.d"
-SUFFIX="_uwsgi_ng"
+SUFFIX="_uwsgi_ng_http"
 
 webroot=""
 portnumber=""

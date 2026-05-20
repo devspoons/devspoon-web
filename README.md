@@ -80,9 +80,11 @@ Af you want to use python and php service at same time, this solution can help y
 
        ```
        In config/web-server/nginx/php
-       There are 2 shell scripts (nginx_conf.sh, nginx_https_conf.sh)
+       There are 2 shell scripts (nginx_http_conf.sh, nginx_https_conf.sh)
+         - nginx_http_conf.sh  → sample_nginx_http.conf  → conf.d/<name>_php_ng_http.conf
+         - nginx_https_conf.sh → sample_nginx_https.conf → conf.d/<name>_php_https_ng.conf
        Use "chmod +x xxxx.sh" command, you activate shell script and run. then it make conf file
-       nginx's a conf file will be in conf.d folder
+       nginx's a conf file will be in conf.d folder. HTTP output always ends with "_http".
        if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
        ```
 
@@ -259,7 +261,7 @@ Af you want to use python and php service at same time, this solution can help y
 
 - This step requires running http nginx server
 
-  1. Run nginx_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/<service>/conf.d/.
+  1. Run nginx_http_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/<service>/conf.d/. Generated filenames always end with "_http" (e.g. <name>_gunicorn_ng_http.conf).
 
   2. Please edit compose/web-service/<service>/docker-compose directly and run it according to the service you want to use.
 
