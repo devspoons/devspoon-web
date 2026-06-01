@@ -13,9 +13,10 @@ NGINX_DIR="$ROOT/config/web-server/nginx/$STACK"
 cd "$NGINX_DIR" || { echo "FAIL cd to $NGINX_DIR"; exit 1; }
 
 # 5-A: generate localhost https conf
+# nginx_https_conf.sh 의 SUFFIX 는 "_${STACK}_ng_https" — 결과 파일명: <NAME>_<STACK>_ng_https.conf
 echo "===== 5-A generate localhost HTTPS conf for $STACK ====="
 ./nginx_https_conf.sh -w "$WEBROOT" -p 80 -d localhost -a "$APPNAME" -s "$SPORT" -n localhost 2>&1 | tail -5
-ls conf.d/localhost_${STACK}_https_ng.conf
+ls conf.d/localhost_${STACK}_ng_https.conf
 
 cd "$ROOT/compose/web-service/$STACK_DIR" || { echo "FAIL cd"; exit 1; }
 
