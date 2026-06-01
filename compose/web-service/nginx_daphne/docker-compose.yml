@@ -25,7 +25,10 @@ services:
       - ../../../config/web-server/nginx/gunicorn/conf.d/:/etc/nginx/conf.d/
       - ../../../config/web-server/nginx/gunicorn/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
       - ../../../config/web-server/nginx/gunicorn/proxy_params/proxy_params:/etc/nginx/proxy_params
-      - ./ssl/certs/:/etc/ssl/certs/
+      # dhparam 백업/복원 — 이미지에 구운 /etc/nginx/dhparam.pem 을 여기에 백업/복원한다.
+      # docker compose down 후 up 시 백업본이 있으면 그대로 복원, 없으면(최초 기동) 이미지본을 백업.
+      # (과거의 ./ssl/certs:/etc/ssl/certs 는 시스템 CA 번들을 가려 certbot 을 깨뜨려 제거)
+      - ./ssl/dhparam/:/etc/nginx/dhparam-backup/
       - ./ssl/letsencrypt/:/etc/letsencrypt/
       - ../../../log/:/log/
       - ../../../script/logrotate/nginx/nginx:/etc/logrotate.d/nginx
