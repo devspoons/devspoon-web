@@ -100,3 +100,26 @@ RUN mkdir -p /etc/nginx/ssl/default && \
 RUN update-ca-certificates && \
     test -s /etc/ssl/certs/ca-certificates.crt && \
     chmod 644 /etc/ssl/certs/ca-certificates.crt
+
+# ============================================================================
+# 8. DH 파라미터(ssl_dhparam) 빌드 시 1회 생성하여 이미지에 굽는다
+#    - 현재 cipher 정책은 ECDHE 전용(TLS1.2/1.3)이라 실제 핸드셰이크엔 쓰이지 않지만,
+#      향후 DHE 추가 대비 + nginx ssl_dhparam 지시어 유지를 위해 단일 공유본을 둔다.
+#      (dhparam 은 비밀이 아니고 도메인 종속도 아니므로 전 도메인 공유로 충분)
+#    - 위치는 /etc/nginx/dhparam.pem — compose 는 /etc/nginx/{conf.d,nginx.conf,proxy_params}
+#      만 개별 마운트하므로 이 파일은 가려지지 않는다. (과거엔 /etc/ssl/certs 아래에 두어
+#      호스트 볼륨이 시스템 CA 번들 ca-certificates.crt 를 가려 certbot 이 실패했었음)
+# ============================================================================
+RUN openssl dhparam -out /etc/nginx/dhparam.pem 2048 && \
+    chmod 644 /etc/nginx/dhparam.pem
+
+# ============================================================================
+# 9. dhparam 백업/복원 훅 (nginx 기동 전, 마운트 적용 후 실행)
+#    - 호스트 볼륨(/etc/nginx/dhparam-backup, compose 에서 ./ssl/dhparam 마운트)에
+#      백업본이 있으면 복원해 사용 → 이미지를 재빌드해 dhparam 이 새로 구워져도
+#      운영 중이던 동일 키를 유지한다 (docker compose down 후 up 시에도 동일 키 유지).
+#    - 백업본이 없으면(최초 기동) 이미지에 구운 dhparam 을 백업 디렉터리로 복사해 둔다.
+#    - nginx 공식 이미지의 /docker-entrypoint.d/*.sh 훅 사용 → nginx 기동 직전 알파벳 순 실행.
+# ============================================================================
+RUN printf '#!/bin/sh\nset -e\nBK=/etc/nginx/dhparam-backup/dhparam.pem\nLV=/etc/nginx/dhparam.pem\nmkdir -p /etc/nginx/dhparam-backup\nif [ -s "$BK" ]; then\n  cp -f "$BK" "$LV"\nelse\n  cp -f "$LV" "$BK"\nfi\n' > /docker-entrypoint.d/20-dhparam.sh && \
+    chmod +x /docker-entrypoint.d/20-dhparam.sh
