@@ -42,7 +42,16 @@ ENV LANG=${OS_LOCALE} \
     LC_MESSAGES=${OS_LOCALE}
 
 # ============================================================================
-# 2. ENTRYPOINT — cron 백그라운드 기동 후 php-fpm 실행 (8.4 와 공용 스크립트)
+# 2. php-fpm 심볼릭 링크 — romeoz/docker-phpfpm:7.3 베이스는 /usr/sbin/php-fpm7.3
+#    만 제공하고 'php-fpm' 이름은 없다. 공식 php:8.4-fpm-bookworm 이미지(및
+#    8.4 Dockerfile / compose CMD ["php-fpm", "--nodaemonize"]) 와 인터페이스를
+#    통일하기 위해 'php-fpm' 심링크를 생성한다. 이 링크 없이는 entrypoint 가
+#    `exec php-fpm --nodaemonize` 단계에서 'not found' 로 즉시 종료된다.
+# ============================================================================
+RUN ln -sf /usr/sbin/php-fpm7.3 /usr/sbin/php-fpm
+
+# ============================================================================
+# 3. ENTRYPOINT — cron 백그라운드 기동 후 php-fpm 실행 (8.4 와 공용 스크립트)
 # ============================================================================
 COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron
 RUN chmod +x /usr/local/bin/entrypoint-with-cron
