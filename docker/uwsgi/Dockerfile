@@ -33,7 +33,8 @@ RUN apt-get update && \
         build-essential pkg-config \
         zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev \
         libreadline-dev libffi-dev libsqlite3-dev \
-        libmysqlclient-dev && \
+        libbz2-dev liblzma-dev \
+        libmysqlclient-dev libpcre3-dev libxml2-dev && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
@@ -86,7 +87,8 @@ RUN apt-get update && \
         curl wget git tar gnupg2 lsb-release lz4 zstd vim \
         zlib1g libncurses6 libgdbm6t64 libnss3 libssl3 \
         libreadline8t64 libffi8 libsqlite3-0 \
-        libmysqlclient21 && \
+        libbz2-1.0 liblzma5 libnsl2 libuuid1 \
+        libmysqlclient21 libpcre3 libxml2 && \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
     update-ca-certificates && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
