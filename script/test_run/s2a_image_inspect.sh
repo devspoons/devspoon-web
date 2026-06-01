@@ -28,20 +28,24 @@ for img in aisum-test/nginx aisum-test/gunicorn aisum-test/uwsgi aisum-test/php-
 done
 
 echo ""
-echo "===== 2A.4 with-cron.sh + aisum-logrotate.sh (gunicorn/uwsgi/php-fpm) ====="
+echo "===== 2A.4 entrypoint-with-cron (gunicorn/uwsgi/php-fpm) ====="
+# 과거 'with-cron.sh' + 'aisum-logrotate.sh' 파일명은 entrypoint-with-cron 으로 통합되었다.
+# (docker/{gunicorn,uwsgi,php-fpm}/Dockerfile 의 COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron)
 for img in aisum-test/gunicorn aisum-test/uwsgi aisum-test/php-fpm; do
     if docker image inspect "$img" >/dev/null 2>&1; then
         echo "--- $img ---"
-        docker run --rm "$img" ls -l /usr/local/bin/with-cron.sh /usr/local/bin/aisum-logrotate.sh 2>&1
+        docker run --rm --entrypoint /bin/sh "$img" -c "ls -l /usr/local/bin/entrypoint-with-cron" 2>&1
     else
         echo "SKIP $img"
     fi
 done
 
 echo ""
-echo "===== 2A.5 nginx entrypoint hook 40-start-cron.sh ====="
+echo "===== 2A.5 nginx entrypoint hook 20-dhparam.sh ====="
+# 과거 40-start-cron.sh 는 docker-entrypoint.sh 안에 sed 로 'cron' 라인 삽입 방식으로 대체되었고
+# (docker/nginx/Dockerfile 섹션 5), 별도 hook 으로는 20-dhparam.sh (dhparam 백업/복원) 만 존재한다.
 if docker image inspect aisum-test/nginx >/dev/null 2>&1; then
-    docker run --rm --entrypoint sh aisum-test/nginx -c "ls -l /docker-entrypoint.d/40-start-cron.sh"
+    docker run --rm --entrypoint sh aisum-test/nginx -c "ls -l /docker-entrypoint.d/20-dhparam.sh"
 fi
 
 echo ""

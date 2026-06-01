@@ -73,8 +73,11 @@ for ua in AhrefsBot SemrushBot DotBot; do
 done
 [ $all_blocked -eq 1 ] && pass "3B.8a" || fail "3B.8a" "some UA not blocked"
 
-echo "===== 3B.8b ngxblocker.d =====" | tee -a "$SUMMARY"
-out=$(docker compose exec -T webserver ls /etc/nginx/ngxblocker.d/ 2>&1)
+echo "===== 3B.8b ngxblocker installed files =====" | tee -a "$SUMMARY"
+# Dockerfile 의 'install-ngxblocker -x -c /etc/nginx' 결과로 botblocker-nginx-settings.conf 와
+# globalblacklist.conf 는 /etc/nginx/ 직속에 떨어진다. (과거 /etc/nginx/ngxblocker.d/ 경로 가정은
+# install-ngxblocker -c 인자 변경 이후 stale 상태였으므로 실제 설치 경로로 정정.)
+out=$(docker compose exec -T webserver ls /etc/nginx/botblocker-nginx-settings.conf /etc/nginx/globalblacklist.conf 2>&1)
 echo "$out"
 echo "$out" | grep -q "botblocker-nginx-settings.conf" && echo "$out" | grep -q "globalblacklist.conf" && pass "3B.8b" || fail "3B.8b" "missing files"
 
@@ -197,22 +200,18 @@ if [ "$STACK" != "php" ]; then
     n=$(ls "$ROOT/log/$LOGSUB/celery/"*.log 2>/dev/null | wc -l)
     [ "$n" -ge 1 ] && pass "3D.3" || fail "3D.3" "no log files"
 
-    echo "===== 3D.4 --profile redis =====" | tee -a "$SUMMARY"
-    docker compose --profile redis up -d 2>&1 | tail -5
-    sleep 4
-    out=$(docker compose --profile redis ps | grep redis-stats)
-    echo "$out"
-    echo "$out" | grep -q "Up" && pass "3D.4" || fail "3D.4" "redis-stats not running"
-
-    echo "===== 3D.5 redis-stats UI =====" | tee -a "$SUMMARY"
-    code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:63790/ 2>&1)
-    echo "code=$code"
-    [ "$code" = "200" ] && pass "3D.5" || fail "3D.5" "code=$code"
+    # 3D.4 / 3D.5 는 redis-stats 서비스 의존 — README §0.5.7 에 따라 제거되었으므로 SKIP.
+    # 모니터링이 필요하면 RedisInsight 또는 redis_exporter 도입 (README §0.5.7 참조).
+    echo "===== 3D.4 SKIP (redis-stats removed per README §0.5.7) =====" | tee -a "$SUMMARY"
+    echo "===== 3D.5 SKIP (redis-stats UI removed per README §0.5.7) =====" | tee -a "$SUMMARY"
 else
     echo "===== 3D SKIP for php =====" | tee -a "$SUMMARY"
 fi
 
 # Logrotate Section 4 checks (only on gunicorn stack)
+# 과거 'aisum-logrotate.sh' 는 entrypoint-with-cron.sh + Debian logrotate 패키지의 cron.daily 훅으로
+# 대체되었다 (docker/{gunicorn,uwsgi,php-fpm}/entrypoint-with-cron.sh 참조). 따라서 force rotation 은
+# /usr/sbin/logrotate -f /etc/logrotate.d/<service> 로 직접 호출한다.
 if [ "$STACK" = "gunicorn" ]; then
     echo "===== 4.1 sanitize mode =====" | tee -a "$SUMMARY"
     out=$(docker compose exec -T webserver ls -l /etc/logrotate.d/nginx /run/logrotate.d/nginx 2>&1)
@@ -220,8 +219,8 @@ if [ "$STACK" = "gunicorn" ]; then
     # etc 0666/0777 (mounted), run 0644
     pass "4.1"
 
-    echo "===== 4.2 force rotation =====" | tee -a "$SUMMARY"
-    docker compose exec -T webserver /usr/local/bin/aisum-logrotate.sh 2>&1 | tail -5
+    echo "===== 4.2 force rotation (nginx) =====" | tee -a "$SUMMARY"
+    docker compose exec -T webserver /usr/sbin/logrotate -f /etc/logrotate.d/nginx 2>&1 | tail -5
     docker compose exec -T webserver ls /log/nginx/ 2>&1 | tail -10
     pass "4.2"
 
@@ -231,7 +230,7 @@ if [ "$STACK" = "gunicorn" ]; then
     pass "4.3"
 
     echo "===== 4.4 gunicorn-app logrotate =====" | tee -a "$SUMMARY"
-    docker compose exec -T gunicorn-app /usr/local/bin/aisum-logrotate.sh 2>&1
+    docker compose exec -T gunicorn-app /usr/sbin/logrotate -f /etc/logrotate.d/gunicorn 2>&1
     rc=$?
     [ $rc -eq 0 ] && pass "4.4" || fail "4.4" "exit=$rc"
 fi
