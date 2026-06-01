@@ -95,7 +95,7 @@ Af you want to use python and php service at same time, this solution can help y
        portnumber : ex -> 80
        appname : ex -> php-app-7.3   (for the PHP 7.3 stack)
                   or  php-app-8.4   (for the PHP 8.4 stack)
-                  → must match container_name in compose/web_service/nginx_php-<ver>/docker-compose.yml
+                  → must match container_name in compose/web-service/nginx_php-<ver>/docker-compose.yml
        serviceport : ex -> 9000 (php-fpm listen port; same in both stacks)
        filename : ex -> xxxx (it's the name for nginx's conf file)
        ```
@@ -118,11 +118,11 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml** (pick one version)
 
        ```
-       PHP 7.3 →  cd compose/web_service/nginx_php-7.3
-       PHP 8.4 →  cd compose/web_service/nginx_php-8.4
+       PHP 7.3 →  cd compose/web-service/nginx_php-7.3
+       PHP 8.4 →  cd compose/web-service/nginx_php-8.4
 
        Execute docker-compose.yml using "docker compose up -d" command.
-       Before first start, copy .env.example to .env and fill in REDIS_PASSWORD
+       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD
        (placeholder REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD must be replaced).
        redis is gated by "profiles: redis" in PHP stacks — start it via:
            docker compose --profile redis up -d
@@ -170,8 +170,8 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml**
 
        ```
-       Get move to compose/web_service/nginx_gunicorn
-       Before first start, copy .env.example to .env and fill in REDIS_PASSWORD,
+       Get move to compose/web-service/nginx_gunicorn
+       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
        FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is no longer stored in .env —
        it is composed from REDIS_PASSWORD at compose time (SSOT, see §0.5.3).
 
@@ -221,14 +221,92 @@ Af you want to use python and php service at same time, this solution can help y
 
      - **Run docker-compose.yml**
        ```
-       Get move to compose/web_service/nginx_uwsgi
-       Before first start, copy .env.example to .env and fill in REDIS_PASSWORD,
+       Get move to compose/web-service/nginx_uwsgi
+       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
        FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is no longer in .env (see §0.5.3).
 
        Execute docker-compose.yml using "docker compose up -d".
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        (redis-stats has been removed — see §0.5.7)
        ```
+
+   - Uvicorn (ASGI) service
+
+     > §0.5.9 동기화에서 `config/web-server/nginx/uvicorn/` (전체) 와
+     > `config/app-server/uvicorn/gunicorn_uvicorn.conf.py` 가 신설되어 본 스택을 nginx 단에서
+     > 정상 generate / 운영할 수 있게 되었습니다. 이전 버전에는 `compose/.../nginx_uvicorn/`
+     > 스택만 존재하고 nginx conf 폴더가 없어, 도메인 conf 를 만들 방법이 없었습니다.
+
+     - **Uvicorn service installation [nginx for uvicorn]**
+
+       ```
+       In config/web-server/nginx/uvicorn
+       There are 2 shell scripts (nginx_http_conf.sh, nginx_https_conf.sh)
+         - nginx_http_conf.sh  → sample_nginx_http.conf  → conf.d/<name>_uvicorn_ng_http.conf
+         - nginx_https_conf.sh → sample_nginx_https.conf → conf.d/<name>_uvicorn_ng_https.conf
+       Use "chmod +x xxxx.sh" command, you activate shell script and run.
+       ```
+
+       ```
+       Shell script required informations like bellow
+       webroot : ex -> fastapi_sample           (or django_sample for ASGI Django)
+       domain : ex -> xxxx.com
+       portnumber : ex -> 80
+       appname : ex -> uvicorn-app
+                   → must match container_name in compose/web-service/nginx_uvicorn/docker-compose.yml
+       serviceport : ex -> 8000
+       filename : ex -> xxxx (it's the name for nginx's conf file)
+       ```
+
+     - **Uvicorn service installation [uvicorn application]**
+
+       ```
+       In config/app-server/uvicorn there are TWO config files:
+         - uvicorn.conf.py           → 표준 uvicorn 직접 기동 시 사용
+         - gunicorn_uvicorn.conf.py  → gunicorn + UvicornWorker 패턴 (다수 워커 prefork ASGI)
+       Both load via UV_PROJECT_ENVIRONMENT=/usr/local (venv 미사용 정책, §8).
+       ```
+
+     - **Run docker-compose.yml**
+
+       ```
+       Get move to compose/web-service/nginx_uvicorn
+       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
+       FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
+
+       Execute docker-compose.yml using "docker compose up -d".
+       For celery / celery-beat / flower: "docker compose --profile celery up -d".
+       ```
+
+   - Daphne (ASGI WebSocket) service — devspoon 고유 스택 (aisum-infrakit 에는 없음)
+
+     ```
+     Stack: compose/web-service/nginx_daphne/
+     Logrotate dropins: script/logrotate/daphne/{daphne,celery/daphne-celery,celerybeat/daphne-celerybeat}
+     Image: shares devspoon-py-app:latest (gunicorn / uvicorn 과 동일 베이스, §0.5.4)
+     Use case: Django Channels 같은 WebSocket-only 요구사항. nginx conf 는 gunicorn 스택의
+     sample 을 base 로 location 별 ws_pass 를 추가하여 사용.
+     ```
+
+## www 샘플 앱 (`www/`)
+
+`www/` 아래의 샘플 앱은 각 스택을 즉시 검증하기 위한 reference 입니다. 운영 코드는 같은 위치에 자신의 폴더로 두면 됩니다.
+
+| 폴더 | 백엔드 / 스택 | 비고 |
+|---|---|---|
+| `www/django_sample/` | gunicorn / uwsgi / daphne / uvicorn 모두에서 사용 가능. Django 4.0.6 + uv-managed (`pyproject.toml`, `uv.lock`) | `.python-version` = 3.14. 호스트에선 `uv sync` 가 `.venv` 자동 생성, 컨테이너에선 시스템 site-packages 직설치 (§8) |
+| `www/fastapi_sample/` | uvicorn 전용. FastAPI 최신, uv-managed | §0.5.9 도입 — uvicorn 스택의 동작 검증용 |
+| `www/flask_sample/` | gunicorn 또는 uwsgi 전용 (WSGI). Flask, uv-managed | §0.5.9 도입 — WSGI 스택의 비-Django 검증용 |
+| `www/php_sample/` | php-fpm (7.3 또는 8.4) 용. 단일 `index.php` | 컨테이너 내부 마운트 `/var/www/html` |
+| `www/certbot/` | 컨테이너 안 ACME webroot 표준 위치 | `.gitkeep` 만 두어 빈 디렉토리 추적. 도메인 발급 시 nginx conf 의 `/.well-known/acme-challenge/` 가 이 경로로 alias |
+
+기존 사용 흐름은 그대로:
+```
+1) 새 앱: www/myapp/  를 만든다.
+2) config/web-server/nginx/<stack>/nginx_http_conf.sh -w myapp -d ... 로 도메인 conf 생성.
+3) compose/web-service/nginx_<stack>/docker-compose.yml 의 PROJECT_DIR=myapp 으로 설정.
+4) docker compose up -d --build
+```
 
 ## How to develop based on working server
 
@@ -318,10 +396,10 @@ Af you want to use python and php service at same time, this solution can help y
 
 본 절은 가장 최근에 일괄 적용된 정책 변경을 모아 둔다 — 이전 README 의 기본값과 다른 부분이 있으니 운영자는 반드시 본 절을 확인 후 §1 이하 운영 가이드를 읽을 것.
 
-#### 0.5.1 자격증명 외부화 — `.env` 와 `.env.example`
+#### 0.5.1 자격증명 외부화 — `.env` 와 `.env-example`
 
-- 6개 스택(daphne / gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 각각의 `compose/web_service/<stack>/.env` 는 **git 추적 대상에서 제외**. 동일 폴더의 `.env.example` 만 추적되며, 신규 환경은 `cp .env.example .env` 후 자격증명을 채워 시작.
-- `.gitignore` 의 패턴: `**/.env` (ignore) + `!**/.env.example` (예외 추적). 기존에 추적되던 5개 `.env` 는 `git rm --cached` 로 untrack 됨 (작업트리 보존).
+- 6개 스택(daphne / gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 각각의 `compose/web-service/<stack>/.env` 는 **git 추적 대상에서 제외**. 동일 폴더의 `.env-example` 만 추적되며, 신규 환경은 `cp .env-example .env` 후 자격증명을 채워 시작.
+- `.gitignore` 의 패턴: `**/.env` (ignore) + `!**/.env-example` (예외 추적). 기존에 추적되던 5개 `.env` 는 `git rm --cached` 로 untrack 됨 (작업트리 보존).
 - compose 의 `${VAR:?error}` 검증: 자격증명 키(`REDIS_PASSWORD` / `FLOWER_ID` / `FLOWER_PWD`) 가 미설정/빈문자열이면 `docker compose up` 단계에서 즉시 fail-fast → "비밀번호 빈값 기동" 사고 차단.
 - 로그 옵션 키(`LOG_DRIVER` / `LOG_OPT_MAXF` / `LOG_OPT_MAXS`) 는 `${VAR:-default}` 로 fallback 처리되어 `.env` 누락에도 무영향.
 
@@ -381,6 +459,33 @@ Af you want to use python and php service at same time, this solution can help y
 
 - `Dockerfile-7.3` / `Dockerfile-8.4` 에서 `dpkg-reconfigure tzdata` 제거. gunicorn / uwsgi / nginx Dockerfile 과 동일하게 `ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone` 패턴으로 통일.
 - `Dockerfile-7.3` 의 중복 install layer 6개를 단일 RUN 으로 압축.
+
+#### 0.5.9 aisum-infrakit 와의 정합화 동기화 (2026-06)
+
+aisum-infrakit (본 프로젝트의 사내 파생본) 의 운영 검증 산출물을 역머지하여 다음 항목이 일괄 정합화되었습니다:
+
+| 항목 | 변경 | 의도 |
+|---|---|---|
+| 폴더명 `compose/web_service/` → `compose/web-service/` | dash naming | aisum-infrakit 와 동일 — 외부 문서/스크립트 호환 |
+| 파일명 `.env.example` → `.env-example` (6개 스택) | dash naming | aisum-infrakit 와 동일 |
+| **`config/web-server/nginx/uvicorn/` 신설** | 디렉토리 추가 | 기존엔 `nginx_uvicorn` 컴포즈 스택만 있고 nginx conf 가 누락 — uvicorn 도메인 conf 를 생성할 방법이 없었다 |
+| `config/app-server/uvicorn/gunicorn_uvicorn.conf.py` 신설 | gunicorn+UvicornWorker 설정 | ASGI 위에서 gunicorn 으로 워커를 띄우는 패턴 지원 |
+| **dhparam 백업/복원 메커니즘** | `ssl/certs:/etc/ssl/certs` 안티패턴 제거, `ssl/dhparam:/etc/nginx/dhparam-backup` 으로 교체 + nginx Dockerfile 에 빌드 시 굽기 + entrypoint hook (§3 dhparam 영속화 절) | certbot 시스템 CA 가림 제거, docker compose down/up 후에도 동일 키 유지 |
+| `script/test_run/` 신설 (16 개 스크립트) | aisum-infrakit 의 회귀 검증 자산 도입 — s0_prereq, s1b_exit_check, s2_build, s3_stack_smoke, s5_https, s6_regression, ssl_diag, verify_block 등 | 검증 자동화 (§10.3 참조). 기존 `script/test/preflight.sh` / `verify-ngxblocker.sh` 와 공존 |
+| `script/logrotate/*` 에 `su root root` 추가 | logrotate 의 "potentially insecure mode" 거부 회피 (WSL `/mnt/c` 0777 mount 환경) | bind mount 환경에서 로테이션 실패 해소 |
+| `docker/gunicorn/Dockerfile` / `docker/uwsgi/Dockerfile` 의존성 보강 | builder: `libbz2-dev liblzma-dev` 추가 / runtime: `libbz2-1.0 liblzma5 libnsl2 libuuid1` 추가 (uwsgi 는 `libpcre3* libxml2*` 추가) | Python stdlib (`bz2` / `lzma`) 와 uwsgi 라우팅/플러그인 dlopen 실패 방지 |
+| `entrypoint-with-cron.sh` 3종 sanitize 로직 추가 | bind-mount 된 logrotate dropin 을 `/run/logrotate.d/` 로 mode 0644 사본화 | WSL 0777 mount 에서 logrotate "potentially dangerous mode" 거부 회피 |
+| `www/fastapi_sample/` / `www/flask_sample/` / `www/certbot/` 신설 | aisum-infrakit 의 샘플 앱 도입 | uvicorn (FastAPI) / 일반 WSGI (Flask) 스택의 동작 확인용. `www/certbot/` 은 ACME webroot 표준 위치 |
+| `script/test_run/*` 의 하드코딩 ROOT 경로 | `/mnt/c/.../aisum-infrakit` → `/mnt/c/.../devspoon-web` 로 일괄 치환됨 | 동일 스크립트가 devspoon-web 에서 즉시 동작 |
+
+보존 (덮어쓰지 않음):
+- `nginx_daphne` 스택 (devspoon 고유), `script/logrotate/daphne/*`, `docs/operations-guide/nginx-hardening/*`
+- `docker/php-fpm/Dockerfile-7.3` / `Dockerfile-8.4` 의 PHP 버전 분리 (aisum 은 단일 PHP 7.2 만)
+- `docker/{gunicorn,uwsgi,php-fpm}/entrypoint-with-cron.sh` 구조 (aisum 은 Dockerfile 인라인 패턴)
+- `redis.conf` 의 `protected-mode yes` (aisum 은 `no`. devspoon 정책 우월)
+- `CELERY_BROKER_URL` 의 compose 합성(SSOT) (aisum 은 .env 에 별도 보관)
+- `script/letsencrypt.sh` (devspoon 버전이 더 진화)
+- `nginx_php-7.3/8.4` 의 2개 병행 스택 + `config/app-server/php-7.3` / `php-8.4` 분리
 
 ---
 
@@ -471,6 +576,42 @@ tail -f log/nginx/crontab_*.log
 3. `/script/letsencrypt.sh` 실행 (webroot / domain / email 입력)
 4. 정상 발급 후 `exit`
 5. HTTPS conf 로 교체 → `docker compose restart`
+
+#### dhparam 영속화 — 이미지 굽기 + 호스트 백업/복원 훅
+
+배경: dhparam(`ssl_dhparam`) 은 비밀이 아니고 도메인 종속도 아니므로 **전체 스택에서 단일 공유본 1 개** 면 충분합니다. 과거에는 호스트 `ssl/certs/` 를 `/etc/ssl/certs` 로 통째 마운트했지만, 이 경로가 시스템 CA 번들(`/etc/ssl/certs/ca-certificates.crt`) 을 가려 certbot 발급이 깨졌습니다. 본 버전은 이 안티패턴을 제거하고 **이미지 빌드 시점에 1회 굽기 + 호스트 백업/복원 훅** 으로 대체했습니다.
+
+| 위치 | 역할 | 누가 만드는가 |
+|---|---|---|
+| `docker/nginx/Dockerfile` 섹션 8 | `openssl dhparam -out /etc/nginx/dhparam.pem 2048` — 이미지에 dhparam 굽기 | 빌드 단계 |
+| `docker/nginx/Dockerfile` 섹션 9 / `/docker-entrypoint.d/20-dhparam.sh` | 호스트 백업이 있으면 복원, 없으면 백업 | nginx 기동 직전 hook (공식 이미지의 entrypoint.d) |
+| `compose/web-service/<stack>/ssl/dhparam/` (호스트) | 복원 소스 / 백업 대상. `/etc/nginx/dhparam-backup/` 로 마운트 | 운영자 또는 자동 백업 hook |
+| `/etc/nginx/dhparam.pem` (컨테이너) | nginx 가 실제 참조하는 파일. `sample_nginx_https.conf` 의 `ssl_dhparam` 지시어가 가리키는 경로 | hook 이 복원 또는 빌드본 사용 |
+
+동작 시나리오:
+
+1. **최초 기동** (호스트 `ssl/dhparam/` 비어 있음) → hook 이 이미지의 dhparam.pem 을 호스트 백업 디렉터리로 **복사**. 같은 키가 호스트에 영속화됨.
+2. **`docker compose down` 후 재기동** → 호스트 백업본이 존재하므로 hook 이 그 백업본을 **이미지본 위에 덮어쓰기 복원**. nginx 가 첫 기동 시와 동일한 dhparam 키를 사용.
+3. **이미지 재빌드** (예: 베이스 nginx 버전 bump → 빌드 시 dhparam 이 새로 굽혀짐) → hook 이 호스트 백업본을 우선 적용하여 운영 키 동질성 유지. 새 dhparam 을 의도적으로 채택하려면 호스트 `ssl/dhparam/dhparam.pem` 을 삭제 후 재기동.
+
+검증:
+
+```bash
+# 빌드 직후 이미지 안에 dhparam 이 굽혔는지
+docker run --rm devspoon-nginx:latest cat /etc/nginx/dhparam.pem | head -1
+# → "-----BEGIN DH PARAMETERS-----"
+
+# 컨테이너 기동 후 호스트 백업본 확인
+ls -la compose/web-service/nginx_gunicorn/ssl/dhparam/
+# → dhparam.pem 이 생성되어 있어야 함
+
+# 동일 키 사용 여부 확인 (다이제스트 비교)
+docker exec -it nginx-gunicorn-webserver sha256sum /etc/nginx/dhparam.pem
+sha256sum compose/web-service/nginx_gunicorn/ssl/dhparam/dhparam.pem
+# → 두 값이 같으면 정상
+```
+
+자세한 검증 스크립트는 `script/test_run/ssl_diag.sh` 를 사용합니다 (§10.3 참조).
 
 ---
 
@@ -608,7 +749,7 @@ sudo sysctl --system
 git pull origin main
 
 # 2. 변경된 도커파일이 있으면 빌드 (없으면 생략)
-cd compose/web_service/nginx_<service>
+cd compose/web-service/nginx_<service>
 docker compose build --no-cache <service>-app   # 필요한 서비스만
 
 # 3. 중단
@@ -631,7 +772,7 @@ curl -fsS https://<domain>/health || echo "FAIL"
 
 ### 7. 보안 / 운영 체크리스트
 
-- [ ] `.env` 의 비밀값 (`REDIS_PASSWORD`, `FLOWER_ID`, `FLOWER_PWD`) 은 git 에 커밋하지 않을 것. `.gitignore` 의 `**/.env` + `!**/.env.example` 패턴 확인 (§0.5.1). `CELERY_BROKER_URL` 은 .env 에 없음 — REDIS_PASSWORD 로부터 compose 가 합성 (§0.5.3).
+- [ ] `.env` 의 비밀값 (`REDIS_PASSWORD`, `FLOWER_ID`, `FLOWER_PWD`) 은 git 에 커밋하지 않을 것. `.gitignore` 의 `**/.env` + `!**/.env-example` 패턴 확인 (§0.5.1). `CELERY_BROKER_URL` 은 .env 에 없음 — REDIS_PASSWORD 로부터 compose 가 합성 (§0.5.3).
 - [ ] `flower(5555)` 포트는 외부 노출 시 nginx basic auth 또는 IP allowlist 적용 (`FLOWER_BASIC_AUTH` 는 이미 강제되어 있지만 추가 레이어 권장). `redis-stats` 는 제거되었으므로 별도 모니터링 필요 시 RedisInsight/redis_exporter 도입 (§0.5.7).
 - [ ] redis 는 컨테이너 내부 네트워크 전용(외부 포트 미노출 상태가 기본 — 유지 권장). `protected-mode yes` + `requirepass` 가 강제되어 동일 네트워크 컨테이너도 인증 필요 (§0.5.2).
 - [ ] Python 베이스 이미지 빌드 시 `docker build --build-arg PYTHON_SHA256=<official>` 또는 ARG default 값(`docker/gunicorn/Dockerfile`) 이 python.org 공식 해시와 일치하는지 분기 1회 재확인 (§0.5.4).
@@ -773,7 +914,7 @@ bash script/test/preflight.sh
 
 #### 10.2 `verify-ngxblocker.sh` — nginx 봇 차단 종단간 검증
 
-[nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker) 의 다운로드, 통합, 차단 동작이 실제로 작동하는지를 종단간으로 자동 검증합니다. **gunicorn 스택**(`compose/web_service/nginx_gunicorn`)을 테스트 베드로 사용합니다 — PHP 스택은 사용하지 않습니다(어차피 nginx 컨테이너 이미지는 모두 동일하므로 한 스택에서만 검증해도 충분).
+[nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker) 의 다운로드, 통합, 차단 동작이 실제로 작동하는지를 종단간으로 자동 검증합니다. **gunicorn 스택**(`compose/web-service/nginx_gunicorn`)을 테스트 베드로 사용합니다 — PHP 스택은 사용하지 않습니다(어차피 nginx 컨테이너 이미지는 모두 동일하므로 한 스택에서만 검증해도 충분).
 
 **사용 방법**
 
@@ -830,6 +971,54 @@ bash script/test/verify-ngxblocker.sh
 | 두 스크립트를 연달아 (셋업 → 봇 차단 검증) | `bash script/test/preflight.sh && bash script/test/verify-ngxblocker.sh` |
 
 새로운 회귀 검증 자산이 필요해지면 같은 폴더에 `verify-<topic>.sh` 또는 `preflight-<topic>.sh` 네이밍으로 추가하면 일관성이 유지됩니다.
+
+---
+
+### 10.3 `script/test_run/` — 단계화된 회귀 검증 배터리 (aisum-infrakit 도입)
+
+§10 의 `script/test/` 가 "특정 영역만 신속 검증" 인 데 비해, `script/test_run/` 은 **단계 번호 (s0/s1b/s2/s3/s5/s6) 로 정렬된 종단간 회귀 배터리** 입니다. aisum-infrakit 의 검증 자산을 본 프로젝트로 역이식하여 동일한 회귀 시나리오를 devspoon-web 에서도 실행할 수 있게 했습니다.
+
+#### 구성
+
+| 단계 | 스크립트 | 검증 영역 | 비고 |
+|---|---|---|---|
+| **s0** | `s0_prereq.sh` | docker / docker compose 버전, 호스트 포트(80/443/5555) 가용, `log/<service>/` 존재, `uv` 설치, `www/django_sample` uv sync | 사전 점검 (read-only 가까움) |
+| **s1b** | `s1b_exit_check.sh` | 컨테이너 비정상 종료 시 exit code / 로그 패턴 검사 | 진단용 |
+| **s1b** | `s1b_nginx_conf_generators.sh` | 5개 스택(gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 의 `nginx_http_conf.sh` / `nginx_https_conf.sh` 가 정상 산출물을 만드는지 — 치환 누락, 비어 있는 placeholder, 파일 권한 검사 | conf 생성기 회귀 |
+| **s2** | `s2_build.sh` | 모든 스택의 `docker compose build` 성공 여부, 이미지 태그 정합성 | 빌드 회귀 |
+| **s2a** | `s2a_image_inspect.sh` | 빌드된 이미지의 baselayer 정합, ENV / WORKDIR / CMD 검사 | 이미지 메타 |
+| **s3** | `s3_stack_smoke.sh <stack> <appname> <appcontainer> <stack_name>` | 단일 스택 기동 → `nginx -t` → `curl -H "Host: ..."` 응답 200 여부 → cleanup | per-stack smoke |
+| **s5** | `s5_https.sh <stack>` | HTTPS 측: dhparam 생성/마운트/복원, self-signed cert 생성, `sample_nginx_https.conf` 치환 산출물 검증, nginx -t 통과 — **certbot 발급은 제외** (도메인 없는 환경 가정) | HTTPS 정합성 |
+| **s6** | `s6_regression.sh` | 통합 회귀 — 위 모든 단계를 순서대로 호출 후 종합 결과 출력 | 야간 회귀 |
+| 보조 | `ssl_diag.sh` | dhparam 경로/내용 검사 + 호스트 백업본 ↔ 컨테이너 본 일치 검사 | §3 dhparam 영속화 절의 자동화 검증 |
+| 보조 | `verify_block.sh` | 봇/스캐너 차단 동작 검사 (§10.2 의 verify-ngxblocker 와 영역 일부 중복) | |
+| 보조 | `celery_diag.sh` / `check_cgi.sh` / `check_cgi2.sh` / `check_excode.sh` / `inspect_orphans.sh` / `sim_exit.sh` | 개별 진단 보조 | 단발성 |
+
+#### 실행 방식
+
+```bash
+# 단계별 실행 (s0 → s2 → s3 → s5 → s6 순)
+cd /mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web
+bash script/test_run/s0_prereq.sh
+
+# 단일 스택 smoke (gunicorn)
+bash script/test_run/s3_stack_smoke.sh nginx_gunicorn gunicorn gunicorn-app gunicorn
+
+# 단일 스택 HTTPS 검증 (도메인 없이, certbot 제외)
+bash script/test_run/s5_https.sh nginx_gunicorn
+
+# dhparam 영속화 검증 (§3 dhparam 절의 자동화)
+bash script/test_run/ssl_diag.sh
+
+# 전체 회귀
+bash script/test_run/s6_regression.sh
+```
+
+#### 주의 — 환경 가정
+
+- 모든 스크립트는 `ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"` 를 하드코딩하고 있습니다. 다른 경로에서 사용하려면 첫 줄의 `ROOT=` 변수를 수정하세요.
+- `s5_https.sh` 는 **도메인이 없는 로컬 환경 가정** — certbot 발급은 시도하지 않고 dhparam / nginx https 샘플 / 경로 정합성만 검증합니다.
+- `s3_stack_smoke.sh` 는 컨테이너를 띄웠다 내리므로 운영 호스트에서는 정비 시간대에만 실행.
 
 ---
 
