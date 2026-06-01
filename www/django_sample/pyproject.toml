@@ -12,6 +12,30 @@ dependencies = [
     "legacy-cgi>=2.6",
 ]
 
+# ============================================================================
+# Optional dependencies — compose `uv sync --extra <X>` 가 참조한다.
+#   gunicorn / uvicorn / daphne / uwsgi 4개 WSGI/ASGI 런타임을 스택별 compose
+#   command 의 `--extra` 토큰 (e.g. nginx_gunicorn → --extra gunicorn) 와 1:1 매칭.
+#   celery 는 모든 Python 스택의 worker / beat 서비스가 공통으로 요청한다.
+# 이 섹션이 없으면 `uv sync --extra gunicorn` 단계에서
+#   "Extra `gunicorn` is not defined in the project's `optional-dependencies` table"
+# 로 실패하여 컨테이너가 즉시 종료된다 (gunicorn-app/celery 모두 영향).
+# 베이스 이미지(Dockerfile gunicorn) 가 이미 gunicorn/uvicorn 을 사전 설치하므로
+# 본 extras 는 uv sync 의 dependency resolution 만족용이며 실제 설치도 동일 버전을
+# 재확인하는 역할.
+# ============================================================================
+[project.optional-dependencies]
+gunicorn = ["gunicorn>=21,<24"]
+uvicorn = ["uvicorn[standard]>=0.25,<1.0"]
+# daphne 4.x / channels 4.x 는 asgiref>=3.5.2 / django>=4.2 를 요구하지만 본
+# 프로젝트는 asgiref==3.4.1 / django==4.0.6 에 고정되어 있어 호환되지 않는다.
+# extras 해석이 통과하도록 daphne 3.x / channels 3.x 로 핀 — 이 라인은
+# Django 4.0 시대 호환 트랙. 운영 daphne 스택에서 4.x 필요 시 django/asgiref
+# 동시 bump 후 본 핀을 풀 것.
+daphne = ["daphne>=3,<4", "channels<4.0"]
+uwsgi = ["uwsgi>=2.0,<3"]
+celery = ["celery[redis]>=5.3,<6"]
+
 [tool.uv]
 # 단일 애플리케이션 — 패키지로 빌드하지 않는다 (build-system 불필요)
 package = false
