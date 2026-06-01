@@ -44,6 +44,13 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # webserver 는 app(8000) 과 redis(6379) 가 모두 healthy 가 되어야 의미가 있다.
+    # service_healthy 조건으로 race(앱 부팅 전에 nginx 가 502 를 뱉는 구간) 을 차단.
+    depends_on:
+      gunicorn-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     # ┌─────────────────────────────────────────────────────────────────────────
     # │ ulimits — 의도적으로 비활성화 상태 (변수 정의만 .env 에 존재)
     # │
@@ -89,6 +96,15 @@ services:
         # redis 가 healthcheck 를 통과한 뒤에만 gunicorn-app 기동.
         # → Django 가 cache/broker 로 redis 를 사용하는 경로에서 race 차단.
         condition: service_healthy
+    # TCP 8000 이 listen 상태인지 bash 내장 /dev/tcp 로 확인 (curl/netcat 추가 의존성 회피).
+    # gunicorn.conf.py 가 0.0.0.0:8000 으로 bind — README §1 워커 가이드 참조.
+    # start_period 30s: uv sync 가 처음에는 wheel 검증 + bytecode 컴파일로 다소 걸림.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # CELERY_BROKER_URL — 단일 출처(SSOT) 정책

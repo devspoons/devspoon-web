@@ -39,6 +39,13 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # webserver 는 uvicorn-app(8000) + redis(6379) 가 healthy 가 되어야 의미가 있다.
+    # service_healthy 조건으로 race(앱 부팅 전에 nginx 가 502 를 뱉는 구간) 을 차단.
+    depends_on:
+      uvicorn-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     # ulimits — 의도적으로 비활성화 상태. 활성화 절차는 .env 의
     # ULIMIT_NOFILE_SOFT / ULIMIT_NOFILE_HARD 와 nginx_gunicorn compose 의 동일 블록 참조.
     # ulimits:
@@ -65,6 +72,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # TCP 8000 이 listen 상태인지 bash 내장 /dev/tcp 로 확인 (의존성 추가 없음).
+    # uvicorn.conf.py 가 0.0.0.0:8000 으로 bind — README §1 워커 가이드 참조.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   # CELERY_BROKER_URL 은 REDIS_PASSWORD 로부터 합성 (SSOT) — drift 차단.
   # 자세한 설명은 nginx_gunicorn/docker-compose.yml 참조.

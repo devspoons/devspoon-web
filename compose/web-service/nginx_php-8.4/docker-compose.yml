@@ -41,6 +41,11 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # webserver 는 php-app(FastCGI 9000) 이 healthy 가 되어야 의미가 있다.
+    # redis 는 본 stack 에서 'redis' profile 로만 기동되므로 의존성에 포함하지 않는다.
+    depends_on:
+      php-app:
+        condition: service_healthy
     # ulimits — 의도적으로 비활성화 상태. 활성화 절차는 .env 의
     # ULIMIT_NOFILE_SOFT / ULIMIT_NOFILE_HARD 와 nginx_gunicorn compose 의 동일 블록 참조.
     # ulimits:
@@ -65,6 +70,15 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # php-fpm 은 pool.d/www.conf 의 `listen = 9000` 에서 FastCGI 수신.
+    # bash 내장 /dev/tcp 로 socket bind 여부만 확인 — FastCGI 프로토콜 미말함.
+    # 공식 php:8.4-fpm-bookworm 베이스는 bash 기본 포함.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/9000' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   redis:
     image: redis:7.4-alpine

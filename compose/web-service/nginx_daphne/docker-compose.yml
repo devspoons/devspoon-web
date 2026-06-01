@@ -38,6 +38,13 @@ services:
     environment:
       TZ: "Asia/Seoul"
     restart: always
+    # webserver 는 daphne-app(8000) + redis(6379) 가 healthy 가 되어야 의미가 있다.
+    # service_healthy 조건으로 race(daphne 가 bind 전 nginx 가 502 를 뱉는 구간) 을 차단.
+    depends_on:
+      daphne-app:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     # ulimits — 의도적으로 비활성화 상태. 변수 정의는 .env 의
     # ULIMIT_NOFILE_SOFT / ULIMIT_NOFILE_HARD 에 두어 운영자가 호스트별로 활성/비활성을
     # 통일된 키로 제어할 수 있게 한다. 호스트 docker daemon 기본값(LimitNOFILE) 이
@@ -67,6 +74,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    # daphne 가 -p 8000 -b 0.0.0.0 으로 ASGI/WebSocket listen 한다.
+    # /dev/tcp 는 protocol 무관하게 TCP 연결만 확인 → daphne 가 accept 단계 진입했는지만 검증.
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/8000' || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
 
   # CELERY_BROKER_URL 은 REDIS_PASSWORD 로부터 합성 (SSOT) — drift 차단.
   # 자세한 설명은 nginx_gunicorn/docker-compose.yml 참조.
