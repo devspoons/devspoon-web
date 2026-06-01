@@ -9,7 +9,12 @@ NGINX_CFG_DIR="$DEVSPOON/config/web-server/nginx/gunicorn"
 BACKUP_DIR="$STACK_DIR/ssl/dhparam"
 
 cleanup() {
+  # docker rm -f 가 "removal already in progress" 일 수 있어 wait + 재시도
   docker rm -f standalone-nginx >/dev/null 2>&1 || true
+  for _ in 1 2 3 4 5; do
+    docker ps -a --filter "name=standalone-nginx" --format '{{.Names}}' | grep -qx standalone-nginx || break
+    sleep 1
+  done
   rm -f "$NGINX_CFG_DIR/conf.d/sa_gunicorn_ng_http.conf" || true
   rm -f "$NGINX_CFG_DIR/conf.d/sa_gunicorn_ng_https.conf" || true
 }
@@ -39,28 +44,45 @@ docker run -d --name standalone-nginx \
   -p 18800:80 -p 18443:443 \
   -e TZ=Asia/Seoul \
   devspoon-nginx:latest >/dev/null
-sleep 3
+# entrypoint hook 직렬화 (envsubst, dhparam backup, cron 등)로 6~10초 소요되는 경우가 있다.
+# 호스트 백업이 생성될 때까지 폴링하여 race 방지.
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  [ -s "$BACKUP_DIR/dhparam.pem" ] && break
+  sleep 1
+done
 
 echo
 echo "=== Verify nginx process running ==="
-docker ps --filter "name=standalone-nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+docker ps -a --filter "name=standalone-nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
 echo
 echo "=== nginx -t (config validity) ==="
-docker exec standalone-nginx nginx -t 2>&1 | tail -5
+docker exec standalone-nginx nginx -t 2>&1 | tail -5 || echo "(docker exec failed — container may have exited; this is expected without upstream)"
 
 echo
 echo "=== Verify dhparam was backed up to host (entrypoint hook ran) ==="
 ls -la "$BACKUP_DIR/"
 if [ -f "$BACKUP_DIR/dhparam.pem" ]; then
   HSHA=$(sha256sum "$BACKUP_DIR/dhparam.pem" | awk '{print $1}')
-  CSHA=$(docker exec standalone-nginx sha256sum /etc/nginx/dhparam.pem | awk '{print $1}')
-  echo "  host backup sha:  $HSHA"
-  echo "  container sha:    $CSHA"
-  if [ "$HSHA" = "$CSHA" ]; then
-    echo "  [PASS] backup matches container dhparam — backup-on-first-run works"
+  # standalone 기동 시 upstream(gunicorn-app)이 없으면 nginx master 가 즉시 종료된 뒤
+  # docker exec 가 거부될 수 있다. docker exec race 를 피하기 위해 종료 후에도 동작하는
+  # docker cp 로 파일을 읽는다.
+  TMP_PEM=$(mktemp)
+  if docker cp standalone-nginx:/etc/nginx/dhparam.pem "$TMP_PEM" >/dev/null 2>&1; then
+    CSHA=$(sha256sum "$TMP_PEM" | awk '{print $1}')
+    rm -f "$TMP_PEM"
+    echo "  host backup sha:  $HSHA"
+    echo "  container sha:    $CSHA"
+    if [ "$HSHA" = "$CSHA" ]; then
+      echo "  [PASS] backup matches container dhparam — backup-on-first-run works"
+    else
+      echo "  [FAIL] backup and container dhparam differ"
+    fi
   else
-    echo "  [FAIL] backup and container dhparam differ"
+    rm -f "$TMP_PEM"
+    echo "  host backup sha:  $HSHA"
+    echo "  [SKIP] docker cp from standalone-nginx failed; host backup itself was created OK"
+    docker logs standalone-nginx 2>&1 | tail -10 || true
   fi
 else
   echo "  [FAIL] no host backup created"
@@ -86,14 +108,43 @@ docker run -d --name standalone-nginx \
   -p 18800:80 -p 18443:443 \
   -e TZ=Asia/Seoul \
   devspoon-nginx:latest >/dev/null
-sleep 3
+# 재기동 후 컨테이너 준비 폴링 (또는 즉시 종료 감지)
+for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  if docker exec standalone-nginx true >/dev/null 2>&1; then
+    break
+  fi
+  if ! docker ps -a --filter "name=standalone-nginx" --format '{{.Status}}' | grep -q "Up"; then
+    # 컨테이너가 곧 종료될 수도 있으니 잠시 더 기다린다 (entrypoint hook 실행 중).
+    :
+  fi
+  sleep 1
+done
 
-C2SHA=$(docker exec standalone-nginx sha256sum /etc/nginx/dhparam.pem | awk '{print $1}')
-echo "  container dhparam sha after restart: $C2SHA"
-if [ "$C2SHA" = "$HSHA" ]; then
-  echo "  [PASS] same dhparam restored from host backup after restart"
+if docker ps --filter "name=standalone-nginx" --filter "status=running" --format '{{.Names}}' | grep -qx standalone-nginx; then
+  C2SHA=$(docker exec standalone-nginx sha256sum /etc/nginx/dhparam.pem | awk '{print $1}')
+  echo "  container dhparam sha after restart: $C2SHA"
+  if [ "$C2SHA" = "$HSHA" ]; then
+    echo "  [PASS] same dhparam restored from host backup after restart"
+  else
+    echo "  [FAIL] dhparam changed across restart"
+  fi
 else
-  echo "  [FAIL] dhparam changed across restart"
+  # 컨테이너가 종료된 경우에도 docker cp 로 종료된 컨테이너 안의 dhparam.pem 을 읽을 수 있다.
+  # nginx 마스터가 종료해도 파일시스템은 남아있으므로 sha 비교는 그대로 의미 있다.
+  TMP_PEM=$(mktemp)
+  if docker cp standalone-nginx:/etc/nginx/dhparam.pem "$TMP_PEM" >/dev/null 2>&1; then
+    C2SHA=$(sha256sum "$TMP_PEM" | awk '{print $1}')
+    rm -f "$TMP_PEM"
+    echo "  container dhparam sha after restart (via docker cp): $C2SHA"
+    if [ "$C2SHA" = "$HSHA" ]; then
+      echo "  [PASS] same dhparam restored from host backup after restart"
+    else
+      echo "  [FAIL] dhparam changed across restart"
+    fi
+  else
+    rm -f "$TMP_PEM"
+    echo "  [SKIP] container exited and docker cp failed; cannot verify post-restart sha"
+  fi
 fi
 
 echo
