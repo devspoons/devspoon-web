@@ -1,7 +1,7 @@
 #!/bin/bash
 # ============================================================================
 # 도메인별 HTTP nginx conf 생성기 — sample_nginx_http.conf 의 placeholder 를 치환하여
-#   ./conf.d/<NAME>_gunicorn_ng_http.conf 로 출력한다. (HTTPS 버전은 nginx_https_conf.sh)
+#   ./conf.d/<NAME>_<STACK>_ng_http.conf 로 출력한다. (HTTPS 버전은 nginx_https_conf.sh)
 # 동작 방식:
 #   - 옵션을 주면 비대화형, 생략하면 대화형으로 묻는다.
 #   - 같은 이름의 파일이 있어도 항상 덮어쓴다(백업이 필요하면 미리 복사할 것).
