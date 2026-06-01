@@ -613,6 +613,8 @@ sha256sum compose/web-service/nginx_gunicorn/ssl/dhparam/dhparam.pem
 
 자세한 검증 스크립트는 `script/test_run/ssl_diag.sh` 를 사용합니다 (§10.3 참조).
 
+> **WSL 환경 주의** : 호스트 백업 dhparam(`ssl/dhparam/dhparam.pem`) 이 컨테이너 root 소유로 생성되어 호스트 사용자가 변경 불가할 수 있습니다. 변경/삭제 시 컨테이너 안에서 작업하거나 호스트에서 `sudo` 로 처리하세요 (자세한 절차는 §11.2 참조).
+
 ---
 
 ### 3.5. 악성 봇 / DDoS 차단 — nginx-ultimate-bad-bot-blocker
@@ -1020,6 +1022,66 @@ bash script/test_run/s6_regression.sh
 - 모든 스크립트는 `ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"` 를 하드코딩하고 있습니다. 다른 경로에서 사용하려면 첫 줄의 `ROOT=` 변수를 수정하세요.
 - `s5_https.sh` 는 **도메인이 없는 로컬 환경 가정** — certbot 발급은 시도하지 않고 dhparam / nginx https 샘플 / 경로 정합성만 검증합니다.
 - `s3_stack_smoke.sh` 는 컨테이너를 띄웠다 내리므로 운영 호스트에서는 정비 시간대에만 실행.
+- **WSL2 호스트인 경우** `script/test_run/*.sh` 실행 직전에 `chmod 644 compose/web-service/*/redis/conf/redis.conf` (및 기타 bind-mount 대상) 권한을 재확인해야 할 수 있습니다. WSL 의 기본 `fmask=177` 정책으로 인해 0600 으로 잘리면 컨테이너 내부 redis 가 conf 를 읽지 못합니다. 영구 회피책은 §11 (WSL2 호스트 운영 가이드) 의 `/etc/wsl.conf` 설정을 참조.
+
+---
+
+### 11. WSL2 호스트 운영 가이드
+
+본 프로젝트는 **dev 환경에서 Windows + WSL2 (Ubuntu)** 위에 docker 를 띄우는 시나리오를 광범위하게 가정합니다 (test_run 스크립트의 `ROOT=/mnt/c/...` 하드코딩이 그 흔적). WSL2 의 기본 mount 옵션이 컨테이너 bind-mount 경로의 권한을 잘라 운영을 깨뜨리는 케이스가 반복되므로 이 절에서 정리합니다.
+
+> 운영(production) 환경은 가능하면 **Linux native 또는 클라우드 VM**을 사용하세요. WSL2 는 dev / 검증 용도입니다.
+
+#### 11.1. `/etc/wsl.conf` 권장 설정
+
+WSL2 의 기본 `/mnt/c` 마운트는 `fmask=177` (즉 0600 — 소유자 r/w 만 허용) 로 동작합니다. 이 상태에서는 컨테이너가 `redis.conf` (0644 필요), `www/php_sample/index.php` (0644 필요), `nginx.conf` 등 bind-mount 한 모든 파일을 **읽지 못해** 즉시 종료됩니다 ("Permission denied" / "Failed to open log file" 등).
+
+WSL2 인스턴스의 `/etc/wsl.conf` 에 다음을 추가하세요 (없으면 생성).
+
+```ini
+[automount]
+enabled = true
+options = "metadata,umask=22,fmask=11"
+```
+
+- `metadata` : Linux 측에서 chmod/chown 메타데이터를 Windows NTFS 에 보관 가능하게 함.
+- `umask=22` : 디렉터리 기본 0755, `fmask=11` : 파일 기본 0644 (즉 mount 된 파일이 0644 로 노출).
+
+설정 후 PowerShell 에서:
+
+```powershell
+wsl --shutdown
+# 그 다음 WSL 터미널 재실행 → 새 마운트 옵션 적용
+```
+
+검증:
+
+```bash
+mount | grep '/mnt/c'
+# → 옵션에 "umask=22,fmask=11" 가 보여야 함
+ls -l compose/web-service/nginx_gunicorn/redis/conf/redis.conf
+# → -rw-r--r-- (0644) 로 보여야 함
+```
+
+#### 11.2. dhparam 호스트 백업본의 root 소유 이슈 (§3 참조)
+
+WSL 환경에서는 컨테이너의 dhparam 백업 hook 이 호스트 디렉터리(`./ssl/dhparam/`) 에 파일을 쓰는데, **컨테이너 내 root 소유**로 생성됩니다. 호스트 비-root 사용자는 이 파일을 직접 수정할 수 없습니다. 변경이 필요하면:
+
+```bash
+# 컨테이너 안에서 작업하거나
+docker compose exec webserver sh -c 'rm /etc/nginx/dhparam-backup/dhparam.pem'
+
+# WSL 호스트에서 sudo 로 처리
+sudo rm compose/web-service/nginx_gunicorn/ssl/dhparam/dhparam.pem
+```
+
+#### 11.3. WSL `/mnt/c` 성능
+
+`/mnt/c` 의 9P/Plan9 마운트는 native ext4 대비 IO 가 ~10x 느립니다. dev 시 컨테이너 build 가 길어지는 주된 원인이며, 운영 가이드라기보다 dev 생산성 팁입니다 — 가능하면 프로젝트를 `~/projects/devspoon-web` (WSL2 native ext4) 로 옮기고 hardcoded ROOT 만 갱신.
+
+#### 11.4. healthcheck timing 과 WSL
+
+WSL2 에서는 컨테이너 시작 ~ healthcheck 첫 회 성공까지 시간이 native Linux 대비 길어질 수 있습니다. compose 의 `start_period: 30s` 가 마진을 두긴 하지만, WSL 호스트가 메모리 압박 상태라면 부족할 수 있습니다. 그 경우 webserver 가 `dependency failed to start: container ... is unhealthy` 로 실패 — 처음 한 번 timeout 을 60s 정도로 임시 상향한 뒤 정상화되면 원복합니다.
 
 ---
 
