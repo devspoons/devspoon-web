@@ -24,7 +24,10 @@ services:
       - ../../../script/:/script/
       - ../../../config/web-server/nginx/uwsgi/conf.d/:/etc/nginx/conf.d/
       - ../../../config/web-server/nginx/uwsgi/nginx_conf/nginx.conf:/etc/nginx/nginx.conf
-      - ../../../config/web-server/nginx/uwsgi/proxy_params/proxy_params:/etc/nginx/proxy_params
+      # uwsgi 스택은 uwsgi_pass 프로토콜을 쓰므로 proxy_params 가 아닌 uwsgi_params 를 마운트한다.
+      # (과거 'proxy_params/proxy_params' 마운트는 소스 경로 부재로 bind mount 가 자동으로 빈
+      # 디렉토리를 만들었던 버그 — sample_nginx_*.conf 들은 `include uwsgi_params;` 만 참조.)
+      - ../../../config/web-server/nginx/uwsgi/uwsgi_params/uwsgi_params:/etc/nginx/uwsgi_params
       # dhparam 백업/복원 — 이미지에 구운 /etc/nginx/dhparam.pem 을 여기에 백업/복원한다.
       # docker compose down 후 up 시 백업본이 있으면 그대로 복원, 없으면(최초 기동) 이미지본을 백업.
       # (과거의 ./ssl/certs:/etc/ssl/certs 는 시스템 CA 번들을 가려 certbot 을 깨뜨려 제거)
