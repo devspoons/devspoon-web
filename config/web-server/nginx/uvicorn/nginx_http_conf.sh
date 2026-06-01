@@ -1,18 +1,18 @@
 #!/bin/bash
 # ============================================================================
-# 도메인별 HTTPS nginx conf 생성기 — sample_nginx_https.conf 의 placeholder 를 치환하여
-#   ./conf.d/<NAME>_gunicorn_ng_https.conf 로 출력한다. (HTTP 버전은 nginx_http_conf.sh)
+# 도메인별 HTTP nginx conf 생성기 — sample_nginx_http.conf 의 placeholder 를 치환하여
+#   ./conf.d/<NAME>_gunicorn_ng_http.conf 로 출력한다. (HTTPS 버전은 nginx_https_conf.sh)
 # 동작 방식:
 #   - 옵션을 주면 비대화형, 생략하면 대화형으로 묻는다.
 #   - 같은 이름의 파일이 있어도 항상 덮어쓴다(백업이 필요하면 미리 복사할 것).
-#   - nginx reload / 인증서 발급은 자동으로 하지 않는다. 끝에 안내되는 명령을 수동 실행할 것.
+#   - nginx reload 는 자동으로 하지 않는다. 끝에 안내되는 명령을 수동 실행할 것.
 # ============================================================================
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"          # 스크립트 위치(스택 디렉토리)로 이동 — 어디서 실행하든 동일하게 동작
 
-STACK="uwsgi"
-SAMPLE="sample_nginx_https.conf"
-SUFFIX="_${STACK}_ng_https"
+STACK="uvicorn"              # 스택 이름 (생성 파일 접미사 / 컨테이너명 안내에 사용)
+SAMPLE="sample_nginx_http.conf"
+SUFFIX="_${STACK}_ng_http"
 
 # 스택별 기본 서비스 포트 — usage() 예시와 prompt 기본값 안내에 사용 (php-fpm 은 9000, 그 외 Python 백엔드는 8000)
 case "$STACK" in
@@ -23,25 +23,20 @@ esac
 usage() {
     cat <<EOF
 ======================================================================
-  nginx HTTPS 도메인 conf 생성기  —  ${STACK} 스택
+  nginx HTTP 도메인 conf 생성기  —  ${STACK} 스택
 ======================================================================
 
 이 스크립트는 ${SAMPLE} 의 placeholder 를 입력 값으로 치환해
 ./conf.d/<NAME>${SUFFIX}.conf 를 생성합니다. nginx 자체는 reload 하지 않습니다.
-
-⚠ 사전 조건 — 본 스크립트로 HTTPS conf 를 만들기 *전에* 다음이 이미 존재해야 합니다:
-   /etc/letsencrypt/live/<DOMAIN>/{fullchain,privkey,chain}.pem
-   없다면 webserver 컨테이너 안에서 ../../../../script/letsencrypt.sh 를 먼저 실행하세요.
-   (letsencrypt.sh 는 certbot 발급 + 자동 갱신 cron 등록을 처리합니다. dhparam 은 이미지에 구워져 별도 준비 불필요.)
 
 사용법:
   $(basename "$0") [옵션]
 
 지원 옵션:
   -w WEBROOT     /www/ 아래 웹루트 경로 (예: django_sample, shop/myapp)
-  -p PORT        HTTP→HTTPS 리다이렉트용 listen 포트 (1-65535; 거의 항상 80)
+  -p PORT        서비스 listen 포트 (1-65535; 예: 80)
   -d DOMAIN      서비스 도메인 (예: example.com)
-                 인증서 경로 /etc/letsencrypt/live/<DOMAIN>/ 에 사용됩니다.
+                 server_name <DOMAIN> www.<DOMAIN> 형태로 들어갑니다.
   -a APPNAME     백엔드 앱 컨테이너 이름 (예: ${STACK}-app)
                  백엔드 pass 대상 <APPNAME>:<SVCPORT> 의 호스트 부분.
   -s SVCPORT     백엔드 포트 (1-65535; ${STACK} 기본값 ${DEFAULT_SVCPORT})
@@ -63,30 +58,25 @@ usage() {
        -a ${STACK}-app -s ${DEFAULT_SVCPORT} -n example
   # → ./conf.d/example${SUFFIX}.conf
 
-  # (2) PHP 백엔드 (php-fpm 은 포트 9000)
+  # (2) 같은 스택, 다른 프로젝트 — 폴더만 다르고 옵션은 동일
+  $(basename "$0") -w fastapi_sample -p 80 -d api.example.com \\
+       -a ${STACK}-app -s ${DEFAULT_SVCPORT} -n api
+
+  # (3) PHP 백엔드 (php-fpm 은 포트 9000)
   $(basename "$0") -w php_sample -p 80 -d shop.example.com \\
        -a php-app -s 9000 -n shop
 
-  # (3) 일부 옵션만 주고 나머지는 대화형으로 입력받기
+  # (4) 일부 옵션만 주고 나머지는 대화형으로 입력받기
   $(basename "$0") -d api.example.com -a ${STACK}-app
+  #   웹루트 / 포트 / 백엔드 포트 / NAME 을 대화형으로 묻습니다.
 
-  # (4) 완전 대화형 모드 (옵션 없이 실행)
+  # (5) 완전 대화형 모드 (옵션 없이 실행)
   $(basename "$0")
 
-전체 HTTPS 구축 흐름 (처음 1회):
-  1) ./nginx_http_conf.sh -w <webroot> -p 80 -d <domain> -a <app> -s <svcport> -n <name>
-     → HTTP conf 생성. ACME HTTP-01 challenge 가 동작하려면 nginx 가 :80 으로 떠 있어야 함.
-  2) cd ../../../../compose/web-service/nginx_${STACK} && docker compose up -d --build
-  3) docker compose exec webserver /script/letsencrypt.sh
-     → 인증서 발급 + 갱신 cron 등록 (도메인당 1회). dhparam 은 이미지에 구워져 있어 별도 단계 없음.
-  4) $(basename "$0") -w <webroot> -p 80 -d <domain> -a <app> -s <svcport> -n <name>
-     → HTTPS conf 생성 (현재 스크립트). 인증서 파일이 존재해야 nginx -t 가 통과.
-  5) docker compose exec webserver nginx -t && \\
-     docker compose exec webserver nginx -s reload
-
-⚠ HTTPS 전환이 끝나면 동일 도메인의 HTTP conf 는 제거하거나 80→443 redirect 만 남기세요.
-  (둘 다 두면 :80 + 같은 server_name 의 server 블록이 중복돼 'conflicting server name' 경고가 납니다.
-   upstream 직접 지정으로 바꾼 뒤로 'duplicate upstream' 기동 실패는 발생하지 않습니다.)
+  # (6) 백엔드가 Unix socket 등으로 포트 없이 동작 — '-s' 를 빈 값으로
+  $(basename "$0") -w mysite -p 80 -d example.com \\
+       -a ${STACK}-app -s '' -n mysite
+  # → 백엔드 pass 가 '${STACK}-app' (포트 없음) 형식
 
 생성 후 반영 (스크립트가 자동으로 하지 않음):
   docker compose exec webserver nginx -t && \\
@@ -94,6 +84,13 @@ usage() {
   # 또는 컨테이너명 직접 지정:
   docker exec nginx-${STACK}-webserver nginx -t && \\
   docker exec nginx-${STACK}-webserver nginx -s reload
+
+관련 스크립트 및 다음 단계:
+  ./nginx_https_conf.sh        — HTTPS(443) 도메인 conf 생성 (Let's Encrypt 발급 후)
+  ../../../../script/letsencrypt.sh
+                              — HTTPS 사용 시 초기 1회 발급 + 자동 갱신 cron 등록
+                                (호출 순서: 본 스크립트로 HTTP conf 생성 → docker compose up
+                                 → letsencrypt.sh → nginx_https_conf.sh → reload)
 EOF
 }
 
@@ -117,6 +114,7 @@ while getopts ":w:p:d:a:s:n:h" opt; do
     esac
 done
 
+# $1=대상변수명 $2=프롬프트 $3=검증 정규식(빈값이면 검증없음) $4="opt"면 빈 입력 허용
 prompt_for() {
     local __var="$1" __msg="$2" __re="${3:-}" __opt="${4:-}" __val
     while :; do
@@ -128,8 +126,10 @@ prompt_for() {
     done
 }
 
+# placeholder 토큰(webroot/domain/appname/filename/serviceport)을 부분문자열 치환하므로,
+# 토큰 자체나 sed delimiter(|) 와 충돌하는 문자가 입력에 들어오지 못하도록 정규식으로 제한한다.
 [[ -n "$webroot"    ]] || prompt_for webroot    "웹루트 (/www/ 제외, 예: shop/myapp) > " '^[A-Za-z0-9._/-]+$'
-[[ -n "$portnumber" ]] || prompt_for portnumber "HTTP 리다이렉트 listen 포트 (예: 80) > "  '^[0-9]{1,5}$'
+[[ -n "$portnumber" ]] || prompt_for portnumber "서비스 listen 포트 (예: 80) > "          '^[0-9]{1,5}$'
 [[ -n "$domain"     ]] || prompt_for domain     "서비스 도메인 (예: example.com) > "       '^[A-Za-z0-9.-]+$'
 [[ -n "$appname"    ]] || prompt_for appname    "백엔드 앱 이름 (예: ${STACK}-app) > "     '^[A-Za-z0-9._-]+$'
 if [[ "$svcport_set" -eq 0 && -z "$serviceport" ]]; then
@@ -137,6 +137,7 @@ if [[ "$svcport_set" -eq 0 && -z "$serviceport" ]]; then
 fi
 [[ -n "$name" ]] || name="$domain"
 
+# 형식/범위 재검증 (옵션으로 받은 값 포함)
 for v in "webroot:$webroot:^[A-Za-z0-9._/-]+\$" "domain:$domain:^[A-Za-z0-9.-]+\$" "appname:$appname:^[A-Za-z0-9._-]+\$" "name:$name:^[A-Za-z0-9._-]+\$"; do
     n="${v%%:*}" ; rest="${v#*:}" ; val="${rest%%:*}" ; re="${rest#*:}"
     [[ "$val" =~ $re ]] || { echo "$n 형식 오류: '$val'" >&2 ; exit 2 ; }
@@ -152,6 +153,7 @@ fi
 outfile="./conf.d/${name}${SUFFIX}.conf"
 [[ -f "$outfile" ]] && echo "기존 파일을 덮어씁니다: $outfile"
 
+# 단일 파이프 치환 — delimiter 를 | 로 두어 webroot 의 / 가 그대로 들어가도 안전(인용 처리됨, 임시파일 불필요)
 sed_args=( -e "s|webroot|${webroot}|g" -e "s|portnumber|${portnumber}|g"
            -e "s|domain|${domain}|g"   -e "s|appname|${appname}|g" )
 if [[ -z "$serviceport" ]]; then sed_args+=( -e "s|:serviceport||g" )
@@ -160,11 +162,6 @@ sed_args+=( -e "s|filename|${name}|g" )
 sed "${sed_args[@]}" "$SAMPLE" > "$outfile"
 
 echo "생성 완료: $outfile"
-echo
-echo "⚠ 이 conf 는 다음 파일들이 존재해야 nginx 가 기동됩니다:"
-echo "    /etc/letsencrypt/live/${domain}/{fullchain,privkey,chain}.pem"
-echo "  최초 인증서 발급(수동):"
-echo "    docker compose exec webserver certbot certonly --webroot -w /www/certbot -d ${domain} -d www.${domain}"
 echo
 echo "반영(수동으로 실행):"
 echo "  docker compose exec webserver nginx -t && docker compose exec webserver nginx -s reload"

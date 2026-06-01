@@ -10,7 +10,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-STACK="uwsgi"
+STACK="uvicorn"
 SAMPLE="sample_nginx_https.conf"
 SUFFIX="_${STACK}_ng_https"
 
