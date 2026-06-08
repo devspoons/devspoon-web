@@ -22,11 +22,22 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ============================================================================
-# 2. Certbot 자동 갱신 Cron 등록
-#    - deploy-hook: 컨테이너에 적합한 graceful reload (master 프로세스에 SIGHUP)
-#    - nginx -t 로 사전 설정 검증 후 reload (잘못된 conf 가 즉시 prod 반영되는 사고 차단)
+# 2. Cron 작업 등록 (certbot 갱신 + daily logrotate)
+#    - certbot renew (월요일 05:00) : deploy-hook 으로 nginx -t 후 graceful reload
+#    - logrotate     (매일  02:00) : sanitized /run/logrotate.d/* 처리 (WSL/Windows
+#                                     bind-mount 가 0777 로 노출되는 /etc/logrotate.d
+#                                     를 logrotate 가 거부하는 문제 회피)
+#    - aisum-logrotate.sh : /run/logrotate.d/*.conf 를 개별 호출 — Debian 기본
+#                           /etc/cron.daily/logrotate 는 /etc/logrotate.conf 만 보고
+#                           /etc/logrotate.d/* (0777 mount) 를 직접 처리하므로
+#                           sanitize 효과가 없음 → 별도 entry 가 필요.
 # ============================================================================
-RUN crontab -l 2>/dev/null | { cat; echo "0 5 * * 1 certbot renew --quiet --deploy-hook \"nginx -t && nginx -s reload\" >> /log/nginx/crontab_$(date +\%Y\%m\%d).log 2>&1"; } | crontab -
+RUN ( crontab -l 2>/dev/null; \
+      echo "0 5 * * 1 certbot renew --quiet --deploy-hook \"nginx -t && nginx -s reload\" >> /log/nginx/crontab_\$(date +\%Y\%m\%d).log 2>&1"; \
+      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/nginx/logrotate.log 2>&1" \
+    ) | crontab - \
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
+ && chmod +x /usr/local/bin/aisum-logrotate.sh
 
 # ============================================================================
 # 3. nginx-ultimate-bad-bot-blocker 설치 (build 시점에 초기 데이터 bake-in)
@@ -50,8 +61,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     /usr/local/sbin/install-ngxblocker -x -c /etc/nginx && \
     # install-ngxblocker 가 만들지 않는 사용자 커스텀 파일은 빈 파일로 생성 (sample_nginx*.conf include 깨짐 방지)
     touch /etc/nginx/bots.d/blacklist-domains.conf && \
-    # botblocker-nginx-settings.conf 는 우리 nginx.conf 의 limit_*_zone addr 와 충돌 → 의도적으로 include 안 함.
-    # (해당 파일은 image 에 존재하나 nginx.conf 가 include 하지 않으므로 무영향)
+    # botblocker-nginx-settings.conf 는 nginx.conf 의 http{} 가 명시적으로 include 한다.
+    # (본 파일은 자체 limit_req_zone / limit_conn_zone 를 정의하나, 우리 nginx.conf 의
+    #  limit_*_zone 지시어는 기본 주석 처리 상태라 충돌하지 않는다. 운영자가 nginx.conf
+    #  의 limit_zone 주석을 해제하려면 zone 이름이 겹치지 않도록 확인 필요.)
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -63,11 +76,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 RUN crontab -l 2>/dev/null | { cat; echo "0 */6 * * * /usr/local/sbin/update-ngxblocker -c /etc/nginx >> /log/nginx/ngxblocker_$(date +\%Y\%m).log 2>&1 && nginx -t && nginx -s reload"; } | crontab -
 
 # ============================================================================
-# 5. Nginx 시작 스크립트에 Cron 추가
-#    - docker-entrypoint.sh 의 'set' 라인 직전에 'cron' 실행 라인 삽입
-#    - cron 데몬은 백그라운드 기동, nginx 가 PID 1 로 foreground 실행
+# 5. 컨테이너 시작 시 cron 데몬 기동 + logrotate dropin sanitize
+#    - vendor 의 docker-entrypoint.sh 를 sed 로 패치하지 않고,
+#      nginx 공식 이미지가 기본 지원하는 /docker-entrypoint.d/*.sh 훅을 사용
+#      (nginx 기동 직전에 알파벳 순으로 실행됨)
+#    - (1) /etc/logrotate.d/* 는 Windows/WSL bind mount 가 0777 로 노출되어
+#          logrotate 가 "Potentially dangerous mode" 로 거부한다. /run/logrotate.d/
+#          로 mode 0644 사본을 만들어 두면 aisum-logrotate.sh 가 안전하게 처리.
+#    - (2) cron 데몬 기동 — certbot renew + daily logrotate + ngxblocker 갱신 트리거.
 # ============================================================================
-RUN sed -i'' -r -e "/set/i\cron" docker-entrypoint.sh
+RUN printf '#!/bin/sh\nset -e\n# (1) logrotate dropin 권한 정리: bind mount 가 0777 인 경우 sanitized 사본을 /run/logrotate.d/ 로 복사 (mode 0644)\nmkdir -p /run/logrotate.d\nif [ -d /etc/logrotate.d ]; then\n  for f in /etc/logrotate.d/*; do\n    [ -f "$f" ] || continue\n    cp -f "$f" "/run/logrotate.d/$(basename "$f")"\n    chmod 644 "/run/logrotate.d/$(basename "$f")"\n  done\nfi\n# (2) certbot/logrotate/ngxblocker 용 cron 데몬 기동\ncommand -v cron >/dev/null 2>&1 && cron || true\n' > /docker-entrypoint.d/40-start-cron.sh \
+ && chmod +x /docker-entrypoint.d/40-start-cron.sh
 
 # ============================================================================
 # 6. HTTPS default_server 용 dummy 인증서 (방법 1: ssl_reject_handshake)
