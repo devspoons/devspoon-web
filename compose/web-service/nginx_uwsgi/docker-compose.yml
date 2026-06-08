@@ -67,7 +67,10 @@ services:
       - ../../../www:/www
       - ../../../config/app-server/uwsgi/uwsgi.ini:/application/uwsgi.ini
       - ../../../log:/log
-      - ../../../script/logrotate/uwsgi/uwsgi:/etc/logrotate.d/uwsgi
+    # uwsgi 본체 로그는 uwsgi.ini 의 log-maxsize (100MB) 로 네이티브 회전한다.
+    # logrotate dropin 을 추가로 마운트하면 같은 파일에 두 회전 메커니즘이 동시에 작동해
+    # race / 데이터 손실 가능성이 생기므로 의도적으로 마운트하지 않는다.
+    # (celery / celery-beat 는 Python logging 이라 logrotate 필요 — 아래 서비스들 참조.)
     command: bash -c "uv sync --inexact --extra uwsgi --extra celery && exec uwsgi --ini /application/uwsgi.ini"
     environment:
       TZ: "Asia/Seoul"
