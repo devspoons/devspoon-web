@@ -51,7 +51,19 @@ ENV LANG=${OS_LOCALE} \
 RUN ln -sf /usr/sbin/php-fpm7.3 /usr/sbin/php-fpm
 
 # ============================================================================
-# 3. ENTRYPOINT — cron 백그라운드 기동 후 php-fpm 실행 (8.4 와 공용 스크립트)
+# 3. Cron + logrotate 부트스트랩
+#   - php-fpm 본체는 회전 미지원 → 호스트 마운트된 /etc/logrotate.d/php-fpm 사용
+#   - cron 데몬은 entrypoint-with-cron.sh 가 백그라운드 기동
+#   - aisum-logrotate.sh : sanitized /run/logrotate.d/* 처리 (WSL 0777 mount 회피)
+# ============================================================================
+RUN ( crontab -l 2>/dev/null; \
+      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/php-fpm/logrotate.log 2>&1" \
+    ) | crontab - \
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
+ && chmod +x /usr/local/bin/aisum-logrotate.sh
+
+# ============================================================================
+# 4. ENTRYPOINT — cron 백그라운드 기동 후 php-fpm 실행 (8.4 와 공용 스크립트)
 # ============================================================================
 COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron
 RUN chmod +x /usr/local/bin/entrypoint-with-cron

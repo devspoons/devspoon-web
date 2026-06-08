@@ -115,24 +115,31 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/local \
     UV_NO_CACHE=1
 
 # ============================================================================
-# 2.4. MySQL/PostgreSQL 백업 도구 + cron + logrotate
+# 2.4. cron + logrotate
+#  - 백업 도구(percona-xtrabackup / pgbackrest) 설치 블록 제거:
+#    본 프로젝트는 외부 DB(MySQL/PostgreSQL)를 쓰지 않고(앱은 sqlite3) 이 도구를
+#    호출하는 곳도 없음. 필요해지면 backup 전용 사이드카 이미지로 분리할 것.
 # ============================================================================
-RUN curl -fsSL -o /tmp/percona-release.deb \
-        https://repo.percona.com/apt/percona-release_latest.generic_all.deb && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends /tmp/percona-release.deb && \
-    rm -f /tmp/percona-release.deb && \
-    percona-release enable pxb-84-lts && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        percona-xtrabackup-84 \
-        pgbackrest \
         cron logrotate && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ============================================================================
-# 2.5. ENTRYPOINT
+# 2.5. Cron + logrotate 부트스트랩
+#   - uwsgi 본체 로그는 uwsgi.ini 의 log-maxsize 로 네이티브 회전 (logrotate 마운트 불필요)
+#   - celery / celery-beat 는 Python logging — 호스트 마운트된 /etc/logrotate.d/uwsgi-celery* 회전 대상
+#   - 일일 02:00 실행, cron 데몬은 entrypoint-with-cron.sh 가 기동
+# ============================================================================
+RUN ( crontab -l 2>/dev/null; \
+      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/uwsgi/logrotate.log 2>&1" \
+    ) | crontab - \
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
+ && chmod +x /usr/local/bin/aisum-logrotate.sh
+
+# ============================================================================
+# 2.6. ENTRYPOINT
 # ============================================================================
 COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron
 RUN chmod +x /usr/local/bin/entrypoint-with-cron

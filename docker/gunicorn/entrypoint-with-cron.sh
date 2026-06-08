@@ -13,9 +13,11 @@
 #       0777 bind mount 환경에서 명시적으로 안전한 사본을 만들어 두는 역할.)
 #
 #   2) cron 데몬 기동 (백그라운드).
-#      Debian/Ubuntu 의 logrotate 패키지 post-install 훅이
-#      /etc/cron.daily/logrotate 를 만들어 두므로 cron 만 떠 있으면
-#      매일 자동으로 /etc/logrotate.d/* 를 처리한다.
+#      Dockerfile 이 crontab 에 일일 02:00 항목으로 aisum-logrotate.sh 를
+#      등록해 두었으므로, cron 만 떠 있으면 (1) 에서 sanitize 한
+#      /run/logrotate.d/* 가 매일 회전된다.
+#      (Debian 기본 /etc/cron.daily/logrotate 는 /etc/logrotate.conf 만 보고
+#       /etc/logrotate.d/* (0777 mount) 를 직접 처리하므로 의존하지 않는다.)
 #
 #   3) docker-compose 의 `command:` (또는 베이스 이미지 CMD) 를
 #      그대로 PID 1 으로 exec — 시그널/zombie reaping 정합성 보존.

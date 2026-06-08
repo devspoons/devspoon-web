@@ -133,25 +133,34 @@ ENV UV_PROJECT_ENVIRONMENT=/usr/local \
     UV_NO_CACHE=1
 
 # ============================================================================
-# 2.4. MySQL/PostgreSQL 백업 도구 (외부 APT) + cron + logrotate
-#  - percona-xtrabackup-84 / pgbackrest 는 운영 컨테이너에서 실행되므로 runtime 단계.
+# 2.4. cron + logrotate (운영 컨테이너의 로그 회전 인프라)
+#  - 백업 도구(percona-xtrabackup / pgbackrest) 설치 블록 제거:
+#    본 프로젝트는 외부 DB(MySQL/PostgreSQL)를 쓰지 않고(앱은 sqlite3) 이 도구를
+#    호출하는 곳도 없음. 필요해지면 backup 전용 사이드카 이미지로 분리할 것.
 # ============================================================================
-RUN curl -fsSL -o /tmp/percona-release.deb \
-        https://repo.percona.com/apt/percona-release_latest.generic_all.deb && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends /tmp/percona-release.deb && \
-    rm -f /tmp/percona-release.deb && \
-    percona-release enable pxb-84-lts && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        percona-xtrabackup-84 \
-        pgbackrest \
         cron logrotate && \
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # ============================================================================
-# 2.5. ENTRYPOINT — start cron then exec compose `command:`
+# 2.5. Cron + logrotate 부트스트랩
+#   - 컨테이너 PID1 은 gunicorn/uvicorn/celery 가 점유 → cron 데몬은 entrypoint 가
+#     백그라운드 기동 (entrypoint-with-cron.sh)
+#   - 일일 02:00 logrotate 실행 — /run/logrotate.d/* (entrypoint sanitize 사본) 처리.
+#     Debian 기본 /etc/cron.daily/logrotate 는 /etc/logrotate.conf 만 보고
+#     /etc/logrotate.d/* (WSL 0777 mount) 를 직접 처리하므로 sanitize 효과가
+#     없음 — 별도 entry 가 필요.
+# ============================================================================
+RUN ( crontab -l 2>/dev/null; \
+      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/gunicorn/logrotate.log 2>&1" \
+    ) | crontab - \
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
+ && chmod +x /usr/local/bin/aisum-logrotate.sh
+
+# ============================================================================
+# 2.6. ENTRYPOINT — start cron then exec compose `command:`
 # ============================================================================
 COPY entrypoint-with-cron.sh /usr/local/bin/entrypoint-with-cron
 RUN chmod +x /usr/local/bin/entrypoint-with-cron
