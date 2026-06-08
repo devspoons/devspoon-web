@@ -2,3 +2,10 @@ asgiref==3.4.1
 Django==4.0.6
 pytz==2021.1
 sqlparse==0.4.2
+# Python 3.13+ 에서 제거된 stdlib 'cgi' 모듈의 PyPI shim — Django 4.0.x 의 'import cgi' 호환용.
+# (pyproject.toml 과 parity. 미설치 시 Python 3.14 런타임에서 Django import 실패)
+legacy-cgi>=2.6
+# Celery 프로파일 (worker / beat / flower) 용
+celery>=5.3
+redis>=5.0
+django-celery-beat>=2.6
