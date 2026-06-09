@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Section 5 HTTPS verification on the currently running stack
 set +e
-ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="$1"        # nginx_php-7.3 / nginx_php-8.4 / nginx_gunicorn / nginx_uvicorn / nginx_uwsgi / nginx_daphne
 STACK="$2"            # php / gunicorn etc.
 WEBROOT="$3"          # php_sample / django_sample
@@ -37,18 +37,46 @@ done
 nginx -t && nginx -s reload
 ' 2>&1 | tail -20
 
-# 5.1 TLS handshake
+# 각 검사는 출력만 하지 않고 명시적으로 pass/fail 을 판정한다 (과거: grep 출력만 → 자동 게이트로 무의미).
+FAILS=0
+
+# 5.1 TLS handshake — Protocol + Cipher 가 협상되어야 한다.
 echo "===== 5.1 TLS handshake ====="
-openssl s_client -connect 127.0.0.1:443 -servername localhost </dev/null 2>&1 | grep -E "(Protocol|Cipher)" | head -5
+tls=$(openssl s_client -connect 127.0.0.1:443 -servername localhost </dev/null 2>&1 | grep -E "(Protocol|Cipher)" | head -5)
+echo "$tls"
+if echo "$tls" | grep -qE "Protocol *:" && echo "$tls" | grep -qiE "Cipher *:" && ! echo "$tls" | grep -qiE "Cipher *: *\(NONE\)"; then
+    echo "  PASS 5.1"
+else
+    echo "  FAIL 5.1 (no TLS handshake)"; FAILS=$((FAILS+1))
+fi
 
 # 5.2 HSTS (use URL with hostname so SNI is set correctly)
 echo "===== 5.2 HSTS ====="
-curl -sIk --resolve localhost:443:127.0.0.1 https://localhost/ 2>/dev/null | grep -i strict-transport-security
+hsts=$(curl -sIk --resolve localhost:443:127.0.0.1 https://localhost/ 2>/dev/null | grep -i strict-transport-security)
+echo "$hsts"
+echo "$hsts" | grep -qiE "max-age=[0-9]+" && { echo "  PASS 5.2"; } || { echo "  FAIL 5.2 (no HSTS max-age)"; FAILS=$((FAILS+1)); }
 
 # 5.3 80->443 redirect
 echo "===== 5.3 80->443 redirect ====="
-curl -sI -H "Host: localhost" http://127.0.0.1/foo 2>/dev/null | grep -E "(HTTP/.*30[12]|Location:)"
+redir=$(curl -sI -H "Host: localhost" http://127.0.0.1/foo 2>/dev/null)
+echo "$redir" | grep -E "(HTTP/.*30[12]|Location:)"
+if echo "$redir" | grep -qE "HTTP/.* 30[12]" && echo "$redir" | grep -qiE "^location: *https://"; then
+    echo "  PASS 5.3"
+else
+    echo "  FAIL 5.3 (no 301/302 -> https)"; FAILS=$((FAILS+1))
+fi
 
-# 5.4 unknown SNI
+# 5.4 unknown SNI — 핸드셰이크가 거부되어야 한다 (ssl_reject_handshake). curl 은 non-zero 로 실패해야 정상.
 echo "===== 5.4 unknown SNI rejection ====="
-curl -k --resolve evil.example:443:127.0.0.1 https://evil.example/ 2>&1 | head -3
+sni_out=$(curl -k --resolve evil.example:443:127.0.0.1 https://evil.example/ 2>&1); sni_ec=$?
+echo "$sni_out" | head -3
+if [ "$sni_ec" -ne 0 ]; then
+    echo "  PASS 5.4 (rejected, curl exit=$sni_ec)"
+else
+    echo "  FAIL 5.4 (unknown SNI accepted)"; FAILS=$((FAILS+1))
+fi
+
+echo
+echo "===== 5 FAILS=$FAILS ====="
+[ "$FAILS" -eq 0 ]
+exit $?

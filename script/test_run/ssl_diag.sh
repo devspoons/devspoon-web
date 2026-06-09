@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-echo "--- nginx error log tail ---"
-docker exec nginx-php-webserver tail -30 /log/nginx/error.log 2>&1
+# 사용법: ssl_diag.sh [webserver_container]  (기본 nginx-gunicorn-webserver)
+CT="${1:-nginx-gunicorn-webserver}"
+echo "--- nginx error log tail ($CT) ---"
+docker exec "$CT" tail -30 /log/nginx/error.log 2>&1
 echo "--- direct s_client ---"
 echo "Q" | openssl s_client -connect 127.0.0.1:443 -servername localhost 2>&1 | head -40
 echo "--- curl verbose ---"

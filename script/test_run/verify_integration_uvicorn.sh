@@ -3,7 +3,7 @@
 # Goal: docker compose up -d, generate a domain conf, curl 200/502, dhparam round-trip.
 set -e
 
-DEVSPOON=/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web
+DEVSPOON="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="$DEVSPOON/compose/web-service/nginx_uvicorn"
 NGINX_CFG_DIR="$DEVSPOON/config/web-server/nginx/uvicorn"
 

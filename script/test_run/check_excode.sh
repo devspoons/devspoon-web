@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check exit code of nginx_http_conf.sh on invalid input across all stacks
-ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 for stack in gunicorn uvicorn uwsgi php; do
   cd "$ROOT/config/web-server/nginx/$stack" || { echo "$stack: missing dir"; continue; }
   ./nginx_http_conf.sh -w x -p 99999 -d X -a Y -s Z >/dev/null 2>&1

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Section 2: Dockerfile build
 set +e
-ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG="$ROOT/log/test_run"
 mkdir -p "$LOG"
 
@@ -39,3 +39,10 @@ echo "===== build summary ====="
 cat "$LOG/build_summary.txt"
 echo ""
 docker images | grep -E "aisum-test/" || echo "no aisum-test images"
+
+# build_summary.txt 의 각 행은 "<name> <exit_code> <elapsed>". exit_code 가 0 이 아닌 빌드 수를 센다.
+fails=$(awk '$2!=0{c++} END{print c+0}' "$LOG/build_summary.txt")
+echo "build failures=$fails"
+# 빌드가 하나라도 실패하면 non-zero 로 종료 → CI / 상위 스크립트가 $? 로 판정 가능.
+[ "$fails" -eq 0 ]
+exit $?

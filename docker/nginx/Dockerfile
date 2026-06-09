@@ -47,11 +47,22 @@ RUN ( crontab -l 2>/dev/null; \
 #    - setup-ngxblocker 는 의도적으로 실행하지 않음 — server 블록 자동 수정은 sample_nginx*.conf
 #      의 명시적 include 로 운영자가 제어
 # ============================================================================
+# 공급망 하드닝: 'master' 부동 참조 대신 고정 커밋 SHA 에서 받고 sha256 으로 무결성을 검증한다.
+#   - master 는 업스트림 계정 탈취/브랜치 하이재킹 시 임의 코드가 엣지 이미지에 무검증 유입될 수 있다.
+#   - 갱신 시: NGXBLOCKER_REF(커밋 SHA)와 아래 3개 sha256 값을 함께 올린다.
+#   - (참고: 아래 6시간 update-ngxblocker cron 은 런타임에 차단 '리스트 데이터'를 받지만 코드 실행은
+#      아니다. 실행 가능한 스크립트 본체를 고정·검증하는 것이 1차 방어선.)
+ARG NGXBLOCKER_REF=782785ccbb0fbf3592046b8d2d97ea059d8d7d46
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \
-    NGXB_URL=https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/master && \
+    NGXB_URL=https://raw.githubusercontent.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker/${NGXBLOCKER_REF} && \
     curl -fsSL -o /usr/local/sbin/install-ngxblocker "$NGXB_URL/install-ngxblocker" && \
     curl -fsSL -o /usr/local/sbin/setup-ngxblocker   "$NGXB_URL/setup-ngxblocker"   && \
     curl -fsSL -o /usr/local/sbin/update-ngxblocker  "$NGXB_URL/update-ngxblocker"  && \
+    printf '%s  %s\n' \
+      92db080637ec21883f608abd0a512678780a267c3d56f3e683b641ad11079aea /usr/local/sbin/install-ngxblocker \
+      cb112fede0bfad2935fc5ae9be7f94f7259d2a03b41d7cd5034774da9f3db38e /usr/local/sbin/setup-ngxblocker \
+      6cbc322c382d7d9370faef2ef41717211ab0f328290291c259ff7de226ae68d7 /usr/local/sbin/update-ngxblocker \
+      | sha256sum -c - && \
     chmod +x /usr/local/sbin/install-ngxblocker \
              /usr/local/sbin/setup-ngxblocker \
              /usr/local/sbin/update-ngxblocker && \

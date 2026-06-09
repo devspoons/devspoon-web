@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Section 0: Prerequisite check
 set +e
-ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT" || exit 1
 
 echo "===== 0.1 docker version ====="
@@ -34,9 +34,15 @@ echo "===== 0.6 django_sample uv sync ====="
 cd "$ROOT/www/django_sample" || { echo "FAIL: no www/django_sample"; exit 1; }
 ls -la
 echo "--- uv sync ---"
+# 기존에 .venv 가 있었으면 보존한다 (테스트가 개발자/CI 의 venv 를 날리지 않도록).
+had_venv=0; [ -d .venv ] && had_venv=1
 uv sync --frozen --no-install-project 2>&1 | tail -20
 echo "--- import django ---"
-uv run python -c "import django; print(django.get_version())" 2>&1
+ver=$(uv run python -c "import django; print(django.get_version())" 2>&1); rc=$?
+echo "$ver"
 echo "--- cleanup .venv ---"
-rm -rf .venv
+if [ "$had_venv" -eq 0 ]; then rm -rf .venv; else echo "  (기존 .venv 보존)"; fi
+if [ $rc -eq 0 ]; then echo "django import OK"; else echo "FAIL: django import (rc=$rc)"; fi
 echo "done"
+# django import 실패 시 non-zero 로 종료 (prerequisite 미충족).
+exit $rc

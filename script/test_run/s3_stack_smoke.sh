@@ -3,9 +3,10 @@
 # Usage: s3_stack_smoke.sh <stack_dir> <stack_name> <app_container_name> <log_subdir>
 # e.g.    s3_stack_smoke.sh nginx_gunicorn gunicorn gunicorn-app gunicorn
 set +e
-ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG="$ROOT/log/test_run"
 mkdir -p "$LOG"
+FAILS=0
 
 STACK_DIR="$1"        # nginx_gunicorn / nginx_uvicorn / nginx_uwsgi / nginx_php-7.3 / nginx_php-8.4 / nginx_daphne
 STACK="$2"            # gunicorn / uvicorn / uwsgi / php
@@ -17,7 +18,7 @@ SUMMARY="$LOG/stack_${STACK}_summary.log"
 : > "$SUMMARY"
 
 pass() { echo "PASS $1"; echo "PASS $1" >> "$SUMMARY"; }
-fail() { echo "FAIL $1 -- $2"; echo "FAIL $1 -- $2" >> "$SUMMARY"; }
+fail() { echo "FAIL $1 -- $2"; echo "FAIL $1 -- $2" >> "$SUMMARY"; FAILS=$((FAILS+1)); }
 
 echo "===== Pre: ensure stack down =====" | tee -a "$SUMMARY"
 docker compose --profile celery --profile redis down -v 2>&1 | tail -5
@@ -168,10 +169,17 @@ case "$STACK" in
         [ "$n" -eq 2 ] && pass "3C.uwsgi" || fail "3C.uwsgi" "uwsgi.ini lines=$n"
         ;;
     php)
-        out=$(curl -sS -H "Host: localhost" http://127.0.0.1/index.php 2>&1)
-        echo "$out" | head -5
-        # PHP renders so we expect *some* php-like output OR plain text
-        if [ -n "$out" ]; then pass "3C.php"; else fail "3C.php" "no body"; fi
+        # PHP 가 실제로 실행됐는지 검증한다. (과거: 본문이 비어있지 않으면 무조건 PASS →
+        #  nginx 502/404 페이지나 미실행 <?php 소스 덤프도 통과시켰다)
+        code=$(curl -sS -H "Host: localhost" -o /tmp/s3_php_body.$$ -w "%{http_code}" http://127.0.0.1/index.php 2>/dev/null)
+        body=$(cat /tmp/s3_php_body.$$ 2>/dev/null); rm -f /tmp/s3_php_body.$$
+        echo "code=$code"; echo "$body" | head -5
+        # 조건: HTTP 200 + phpinfo() 렌더 마커("PHP Version") + 원본 "<?php" 가 본문에 노출되지 않음
+        if [ "$code" = "200" ] && echo "$body" | grep -qi "PHP Version" && ! printf '%s' "$body" | grep -q "<?php"; then
+            pass "3C.php"
+        else
+            fail "3C.php" "code=$code (php 미실행 또는 소스 노출)"
+        fi
         ;;
 esac
 
@@ -214,20 +222,24 @@ fi
 # /usr/sbin/logrotate -f /etc/logrotate.d/<service> 로 직접 호출한다.
 if [ "$STACK" = "gunicorn" ]; then
     echo "===== 4.1 sanitize mode =====" | tee -a "$SUMMARY"
-    out=$(docker compose exec -T webserver ls -l /etc/logrotate.d/nginx /run/logrotate.d/nginx 2>&1)
-    echo "$out"
-    # etc 0666/0777 (mounted), run 0644
-    pass "4.1"
+    docker compose exec -T webserver ls -l /etc/logrotate.d/nginx /run/logrotate.d/nginx 2>&1
+    # /run dropin 은 0644 로 sanitize 되어 있어야 logrotate 가 거부하지 않는다.
+    runmode=$(docker compose exec -T webserver ls -l /run/logrotate.d/nginx 2>&1)
+    echo "$runmode"
+    echo "$runmode" | grep -qE "^-rw-r--r--" && pass "4.1" || fail "4.1" "run dropin not 0644: $runmode"
 
     echo "===== 4.2 force rotation (nginx) =====" | tee -a "$SUMMARY"
-    docker compose exec -T webserver /usr/sbin/logrotate -f /etc/logrotate.d/nginx 2>&1 | tail -5
+    out=$(docker compose exec -T webserver /usr/sbin/logrotate -f /etc/logrotate.d/nginx 2>&1); rc=$?
+    echo "$out" | tail -5
     docker compose exec -T webserver ls /log/nginx/ 2>&1 | tail -10
-    pass "4.2"
+    [ $rc -eq 0 ] && pass "4.2" || fail "4.2" "logrotate -f exit=$rc"
 
     echo "===== 4.3 nginx -s reopen =====" | tee -a "$SUMMARY"
-    docker compose exec -T webserver nginx -s reopen 2>&1
-    docker compose exec -T webserver pgrep -a nginx 2>&1 | head -5
-    pass "4.3"
+    docker compose exec -T webserver nginx -s reopen 2>&1; rc=$?
+    alive=$(docker compose exec -T webserver pgrep -a nginx 2>&1 | head -5)
+    echo "$alive"
+    # reopen 성공(exit 0) 그리고 master 프로세스 생존을 함께 단언.
+    { [ $rc -eq 0 ] && echo "$alive" | grep -q "nginx: master"; } && pass "4.3" || fail "4.3" "reopen exit=$rc 또는 master 종료"
 
     echo "===== 4.4 gunicorn-app logrotate =====" | tee -a "$SUMMARY"
     docker compose exec -T gunicorn-app /usr/sbin/logrotate -f /etc/logrotate.d/gunicorn 2>&1
@@ -236,5 +248,9 @@ if [ "$STACK" = "gunicorn" ]; then
 fi
 
 echo "===== End of stack $STACK summary =====" | tee -a "$SUMMARY"
+echo "FAILS=$FAILS" | tee -a "$SUMMARY"
 echo
 cat "$SUMMARY"
+# 실패가 하나라도 있으면 non-zero 로 종료 → CI / 상위 스크립트가 $? 로 성패를 판정할 수 있다.
+[ "$FAILS" -eq 0 ]
+exit $?

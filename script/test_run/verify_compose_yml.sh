@@ -2,7 +2,7 @@
 # Validate every stack's docker-compose.yml syntactically and verify the SSL/dhparam volume mount.
 set -e
 
-DEVSPOON=/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web
+DEVSPOON="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PASS=0
 FAIL=0
 

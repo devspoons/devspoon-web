@@ -2,7 +2,7 @@
 # Integration test for nginx_daphne stack (ASGI Channels) — reuses devspoon-py-app:latest.
 set -e
 
-DEVSPOON=/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web
+DEVSPOON="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="$DEVSPOON/compose/web-service/nginx_daphne"
 # Daphne stack shares gunicorn nginx config (no nginx/daphne subdir per design)
 NGINX_CFG_DIR="$DEVSPOON/config/web-server/nginx/gunicorn"

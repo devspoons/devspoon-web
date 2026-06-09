@@ -44,6 +44,15 @@ compose/web_service/nginx_uwsgi/redis/
 *.py[cod]
 *.egg-info/
 
+# ---------------------------------------------------------------------------
+# 런타임 SQLite DB / 시크릿 파일은 추적 금지.
+# - 기존에 추적되던 파일은 인덱스에서 제거: git rm --cached www/django_sample/db.sqlite3 www/django_sample/secrets.json
+# - secrets.json 은 .example 패턴 또는 env 주입으로 관리 권장.
+# ---------------------------------------------------------------------------
+www/*/db.sqlite3
+www/*/secrets.json
+*.sqlite3
+
 # uv.lock 은 커밋 권장 (재현 가능 빌드). 환경별로 다른 락이 필요하다면 추가 정책 검토.
 # !**/uv.lock
 

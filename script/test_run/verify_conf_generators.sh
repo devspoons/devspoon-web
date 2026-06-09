@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -e
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 echo "=== Testing all 4 stacks nginx conf generators ==="
 for stack in gunicorn uvicorn uwsgi php; do
-  cd /mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web/config/web-server/nginx/"$stack"
+  cd "$ROOT/config/web-server/nginx/$stack"
   chmod +x nginx_http_conf.sh nginx_https_conf.sh
   case "$stack" in
     gunicorn) appname=gunicorn-app; svcport=8000; webroot=django_sample ;;
@@ -40,6 +41,6 @@ done
 echo
 echo "=== Cleanup: removing test conf files ==="
 for stack in gunicorn uvicorn uwsgi php; do
-  rm -f /mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web/config/web-server/nginx/"$stack"/conf.d/test_*.conf
+  rm -f "$ROOT/config/web-server/nginx/$stack"/conf.d/test_*.conf
 done
 echo "Done."
