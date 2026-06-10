@@ -94,6 +94,17 @@ backlog = 2048
 # 비동기 워커는 디스크 I/O 거의 없음 → /dev/shm 미사용
 worker_tmp_dir = None
 
+
+# ==========================================
+# 권한 강하 (privilege drop) — uwsgi/php-fpm/gunicorn 스택과 동일하게 워커를 www-data 로 실행.
+# 컨테이너는 root 로 기동(uv sync 등)되고, gunicorn arbiter(master)는 root 를 유지하되
+# UvicornWorker 를 fork 하며 www-data(uid 33) 로 setuid 한다. (root 워커 회피)
+# 전제: /www 앱 소스는 www-data 가 읽기 가능해야 하고(배포 시 644/755), compose command 의
+#       `chown -R www-data:www-data /www/${PROJECT_DIR}` 가 SQLite db 쓰기 권한을 맞춘다.
+# ==========================================
+user = "www-data"
+group = "www-data"
+
 """
 운영 체크리스트:
 1. logrotate (script/logrotate/uvicorn/) 가 /etc/logrotate.d/uvicorn 에 마운트되어

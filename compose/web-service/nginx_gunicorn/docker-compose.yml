@@ -87,7 +87,10 @@ services:
     #     uv sync 가 .venv 를 만들지 않고 /usr/local/lib/python3.14/site-packages 에 직접 설치
     #   - --inexact: Dockerfile 이 사전 설치한 패키지(fastapi/sqlalchemy/wheel 등) 제거 방지
     #   - exec 후 시스템 바이너리(gunicorn) 직접 실행 → uv run 불필요, 트러블슈팅 단순화
-    command: bash -c "uv sync --inexact --extra gunicorn --extra celery && exec gunicorn -c /gunicorn/gunicorn.conf.py"
+    # chown: gunicorn 워커가 www-data 로 강하(gunicorn.conf.py 의 user/group)되므로,
+    #        앱이 쓰는 SQLite db / 미디어 / static 등 /www/${PROJECT_DIR} 를 www-data 소유로 맞춘다.
+    #        미설정 시 www-data 가 db 파일을 못 열어 'unable to open database file' 로 기동 실패.
+    command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} && uv sync --inexact --extra gunicorn --extra celery && exec gunicorn -c /gunicorn/gunicorn.conf.py"
     environment:
       TZ: "Asia/Seoul"
     restart: always

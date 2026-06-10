@@ -65,7 +65,9 @@ services:
       - ../../../config/app-server/uvicorn/:/uvicorn
       - ../../../script/logrotate/uvicorn/uvicorn:/etc/logrotate.d/uvicorn
     # uv 네이티브 흐름 — uvicorn extra 가 gunicorn 도 포함 (gunicorn + UvicornWorker).
-    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && exec gunicorn -c /uvicorn/uvicorn.conf.py"
+    # chown: UvicornWorker 가 www-data 로 강하(uvicorn.conf.py 의 user/group)되므로,
+    #        앱이 쓰는 SQLite db / 미디어 등 /www/${PROJECT_DIR} 를 www-data 소유로 맞춘다.
+    command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} && uv sync --inexact --extra uvicorn --extra celery && exec gunicorn -c /uvicorn/uvicorn.conf.py"
     environment:
       TZ: "Asia/Seoul"
     restart: always
