@@ -141,6 +141,15 @@ Af you want to use python and php service at same time, this solution can help y
        To switch versions: "docker compose stop" in the running stack first, then "up -d" in the other.
        ```
 
+       > **PHP `.env-example` 의 변수 셋이 Python stack 과 다릅니다.** PHP 스택은 단순화된
+       > 변수 (`LOG_DRIVER`, `LOG_OPT_MAXF`, `LOG_OPT_MAXS`, `REDIS_PASSWORD`,
+       > `ULIMIT_NOFILE_SOFT/HARD`) 만 사용합니다.
+       > Python stack 의 `PROJECT_DIR / WORKERS / PROJECT_NAME / FLOWER_* / GUNICORN_PORT`
+       > 는 PHP 에서는 정의되지 않으며, `PROJECT_DIR` 대신 nginx sample conf 의 `root /www/php_sample`
+       > 경로가 직접 가리키는 디렉터리(`www/php_sample/`) 가 고정 webroot 입니다.
+       > 새 php 프로젝트로 교체하려면 `www/<myphp>/` 를 만든 뒤 nginx conf 의 `root /www/<myphp>`
+       > 만 수정하면 됩니다 (compose 변수 변경 불필요).
+
    - Gunicorn service
 
      - **Gunicorn service installation [nginx for gunicorn]**
@@ -166,15 +175,24 @@ Af you want to use python and php service at same time, this solution can help y
      - **Gunicorn service installation [gunicorn application]**
 
        ```
-       * If user want to use config.py, user have to modify run.sh file in docker/gunicorn/
-       In docker/gunicorn/
+       In config/app-server/gunicorn/
+         - gunicorn.conf.py  → Gunicorn 설정 (workers, bind, user="www-data", group="www-data" 등)
 
-       Dockerfile required run.sh file to start gunicorn service in a container
-       There are 2 shell script, make_run.sh and run.sh in /docker/gunicorn
+       run.sh / make_run.sh 패턴은 사용하지 않습니다. 현재 docker-compose.yml 의
+       gunicorn-app service 가 직접:
 
-       if you want to use sample project django_test in /www/py37, you can use run.sh.
-       if you want to use new project, you must make run.sh using make_run.sh
-       * when you input the path, considered "\\/www\\/shop\\/shop_kings
+         command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} \
+                  && uv sync --inexact --extra gunicorn --extra celery \
+                  && exec gunicorn -c /gunicorn/gunicorn.conf.py"
+
+       위 한 줄로
+         (1) /www/${PROJECT_DIR} 소유권을 www-data 로 강하 (워커 권한 강하, §0.5)
+         (2) uv 가 pyproject.toml 의 [gunicorn,celery] extras 를 컨테이너 site-packages
+             에 동기화 (venv 미사용 정책 §8)
+         (3) gunicorn 을 사전 작성된 /gunicorn/gunicorn.conf.py 로 기동
+       을 모두 처리합니다. 별도 run.sh 작성 불필요.
+
+       새 프로젝트로 교체하려면 .env 의 PROJECT_DIR 만 바꾸세요.
        ```
 
      - **Run docker-compose.yml**
@@ -216,17 +234,20 @@ Af you want to use python and php service at same time, this solution can help y
 
        ```
        In config/app-server/uwsgi
-       There are a file of uwsgi_conf.sh
-       you can make uwsgi.ini using this shell script file
-       ```
+         - uwsgi_conf.sh  → uwsgi.ini 생성기 (도메인 / chdir / module 등 입력)
+         - uwsgi.ini      → 생성기 산출물 (master uid=33 gid=33 권한 강하 포함)
 
-       ```
-       Dockerfile required run.sh file to start gunicorn service in a container
-       There are 2 shell script, make_run.sh and run.sh in /docker/uwsgi
+       run.sh / make_run.sh 패턴은 사용하지 않습니다. 현재 docker-compose.yml 의
+       uwsgi-app service 가 직접:
 
-       if you want to use sample project django_test in /www/py37, you can use run.sh.
-       if you want to use new project, you must make run.sh using make_run.sh
-       * when you input the path, considered "\\/www\\/shop\\/shop_kings
+         command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} \
+                  && uv sync --inexact --extra uwsgi --extra celery \
+                  && exec uwsgi --ini /uwsgi/uwsgi.ini"
+
+       위 한 줄로 (1) /www 소유권 강하 (2) uv 의 [uwsgi,celery] extras 동기화
+       (3) uwsgi master 기동 을 모두 처리합니다. 별도 run.sh 작성 불필요.
+
+       새 프로젝트로 교체하려면 .env 의 PROJECT_DIR 만 바꾸세요.
        ```
 
      - **Run docker-compose.yml**
@@ -314,9 +335,34 @@ Af you want to use python and php service at same time, this solution can help y
 ```
 1) 새 앱: www/myapp/  를 만든다.
 2) config/web-server/nginx/<stack>/nginx_http_conf.sh -w myapp -d ... 로 도메인 conf 생성.
-3) compose/web-service/nginx_<stack>/docker-compose.yml 의 PROJECT_DIR=myapp 으로 설정.
+3) compose/web-service/nginx_<stack>/.env 의 PROJECT_DIR=myapp 으로 설정.
+   (docker-compose.yml 은 ${PROJECT_DIR} 변수 치환만 하며, 값 자체는 .env 가 보유)
 4) docker compose up -d --build
 ```
+
+### `conf.d/` 의 영구 sample `.conf` 정책 (테스트용 즉시 검증)
+
+각 스택의 `config/web-server/nginx/<stack>/conf.d/` 디렉터리에는 **2 종류의 영구 `.conf`** 만 존재합니다 (`.example` 패턴 금지 — 단일 확장자 정책):
+
+| 파일 | 역할 | 동작 |
+|---|---|---|
+| `default.conf` | catch-all 단독 책임 | `listen 80 default_server` + `listen 443 ssl default_server` + `server_name _` + `return 444` / `ssl_reject_handshake on`. 알 수 없는 Host/SNI 차단. **default_server 가 정의되는 유일한 위치** |
+| `<sample>_<stack>_ng_http.conf` | 즉시 검증용 영구 sample | `listen 80;` (default_server 없음) + `server_name localhost www.localhost;` 로 한정. nginx 컨테이너 시작 시 자동 로드되어 `Host: localhost` 로 HTTP 200 응답 가능 |
+
+| Stack | sample conf 파일 |
+|---|---|
+| gunicorn | `django_sample_gunicorn_ng_http.conf` |
+| uvicorn | `django_sample_uvicorn_ng_http.conf` |
+| uwsgi | `django_sample_uwsgi_ng_http.conf` |
+| php (7.3/8.4 공용) | `sample_php_ng_http.conf` |
+
+**즉시 검증** (compose up 직후):
+```bash
+curl -H "Host: localhost" http://localhost/    # → 200
+```
+별도 활성화 단계 (예: `cp .example .conf`) **불필요**. sample 의 `listen 80;` 와 `default.conf` 의 `listen 80 default_server;` 가 동일 포트를 공유해도 default_server 키워드가 default.conf 에만 있어 충돌 없음.
+
+**도메인별 운영 conf 추가**: `nginx_http_conf.sh -w <webroot> -d <domain> -p 80 -a <appname> -s <serviceport> -n <name>` 로 `conf.d/<name>_<stack>_ng_http.conf` 를 생성 — sample 과 다른 `server_name` 을 가지므로 공존합니다. 운영 시 sample 을 비활성화하려면 해당 파일을 `conf.d/` 밖으로 옮기거나 삭제하세요 (영구 `.conf` 이므로 git 추적).
 
 ## How to develop based on working server
 
@@ -371,9 +417,9 @@ Af you want to use python and php service at same time, this solution can help y
 
   11. Run the “docker-compose restart” command in the compose folder. You can also use the “docker-compose stop” and “docker-compose start” commands in the compose folder. Do not use the "docker-compose down" command. Related configuration files may be deleted.
 
-  12. To reflect this, you must use certbot to restart the container whose keys are automatically updated. Runs a script matching script/crontab\_<service> outside the container.
+  12. Certbot 갱신 cron 은 컨테이너 안에 내장되어 있습니다 (`docker/<stack>/entrypoint-with-cron.sh` 가 부팅 시 등록). 호스트에서 별도 `crontab` 설정 / 외부 스크립트 실행은 **불필요** 합니다. 갱신 시 `--deploy-hook "nginx -t && nginx -s reload"` 로 인증서가 바뀐 경우에만 nginx 가 graceful reload 합니다. 자세한 cron 진실 소스는 §3 "갱신 cron 의 진실 소스" 참조.
 
-  13. You can use crontab -l to check if it is registered properly.
+  13. 컨테이너 내부에서 cron 등록 확인: `docker compose exec webserver crontab -l` 또는 `docker compose exec gunicorn-app crontab -l` (각 stack 의 entrypoint 가 등록).
 
 ## 운영자 가이드 (Operator's Manual)
 
@@ -1004,6 +1050,12 @@ bash script/test/verify-ngxblocker.sh
 | **s6** | `s6_regression.sh` | 통합 회귀 — 위 모든 단계를 순서대로 호출 후 종합 결과 출력 | 야간 회귀 |
 | 보조 | `ssl_diag.sh` | dhparam 경로/내용 검사 + 호스트 백업본 ↔ 컨테이너 본 일치 검사 | §3 dhparam 영속화 절의 자동화 검증 |
 | 보조 | `verify_block.sh` | 봇/스캐너 차단 동작 검사 (§10.2 의 verify-ngxblocker 와 영역 일부 중복) | |
+| 보조 | `verify_compose_yml.sh` | 6 스택 docker-compose.yml 의 dhparam 마운트 / 안티패턴 (ssl/certs 마운트, ulimits 미정의) 정적 검사 | 정적 회귀 |
+| 보조 | `verify_conf_generators.sh` | 4 스택 × HTTP+HTTPS generator 산출물 검증 | 정적 회귀 |
+| 보조 | `verify_dhparam_lifecycle.sh` / `verify_dhparam_host_wins.sh` | dhparam A/B/C 단계 백업·복원·호스트 우선 검증 (PORT 랜덤화 + 폴링 강화) | §3 dhparam |
+| 보조 | `verify_healthcheck.sh` | 6 스택 healthcheck 정적 12 PASS + 런타임 옵션 | §0.5 healthcheck |
+| 보조 | `verify_nginx_standalone.sh` | 실제 nginx 컨테이너 기동 + 전체 마운트 + `docker cp` 로 종료 컨테이너에서도 dhparam 추출 | dhparam 통합 |
+| **통합** | `verify_integration_<stack>.sh` × 6 | **6 스택 풀스택 통합 verifier** — `.env` 자동 셋업 + `docker compose up -d` + healthcheck 대기 + `curl Host: localhost` HTTP 200 + gzip Vary + 워커 권한 강하 (master root + workers www-data) + dhparam sha256 정합 검증 + 자동 cleanup | gunicorn / uvicorn / uwsgi / daphne / php73 / php84 |
 | 보조 | `celery_diag.sh` / `check_cgi.sh` / `check_cgi2.sh` / `check_excode.sh` / `inspect_orphans.sh` / `sim_exit.sh` | 개별 진단 보조 | 단발성 |
 
 #### 실행 방식
@@ -1025,6 +1077,15 @@ bash script/test_run/ssl_diag.sh
 
 # 전체 회귀
 bash script/test_run/s6_regression.sh
+
+# === 풀스택 통합 verifier (6 stack, end-to-end) ===
+# .env 자동 셋업 + compose up + healthcheck 대기 + HTTP 200 + gzip + 권한 강하 + dhparam 검증
+bash script/test_run/verify_integration_gunicorn.sh
+bash script/test_run/verify_integration_uvicorn.sh
+bash script/test_run/verify_integration_uwsgi.sh
+bash script/test_run/verify_integration_daphne.sh
+bash script/test_run/verify_integration_php73.sh
+bash script/test_run/verify_integration_php84.sh
 ```
 
 #### 주의 — 환경 가정
