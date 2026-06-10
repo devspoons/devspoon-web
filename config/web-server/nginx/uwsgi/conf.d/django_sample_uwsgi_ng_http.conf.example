@@ -1,5 +1,5 @@
 server {
-    listen       80 default_server;  # default_server 추가
+    listen       80;  # default_server 는 default.conf 가 책임 (포트 80 default_server 는 정확히 1개)
     server_name  localhost www.localhost; 
     
     access_log /log/nginx/django_sample.com.access.log main;
@@ -25,8 +25,11 @@ server {
 
     location / {
         uwsgi_pass uwsgi-app:8000;
+        # REQUEST_METHOD/PATH_INFO/QUERY_STRING 등의 uwsgi 환경변수 전달. 누락 시 워커가
+        # KeyError: 'REQUEST_METHOD' 로 500 반환 → nginx 는 502 응답.
+        include uwsgi_params;
 
-        uwsgi_max_temp_file_size 20480m; 
+        uwsgi_max_temp_file_size 20480m;
         uwsgi_buffering off; 
         uwsgi_ignore_client_abort on; 
         uwsgi_buffers 2560 160k; 

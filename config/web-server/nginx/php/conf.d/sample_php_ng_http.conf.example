@@ -1,5 +1,5 @@
 server {
-    listen       80 default_server;  # default_server 추가
+    listen       80;  # default_server 는 default.conf 가 책임 (포트 80 default_server 는 정확히 1개)
     server_name  localhost www.localhost; 
     
     root   /www/php_sample;
@@ -31,7 +31,8 @@ server {
     # Allow Lets Encrypt Domain Validation Program
     location ^~ /.well-known/acme-challenge/ {
         allow all;
-        /www/php_sample;
+        root /www/certbot;   # 고정 ACME 챌린지 루트 (letsencrypt.sh -w 와 동일)
+        try_files $uri =404;
     }
  
     # Block dot file (.htaccess .htpasswd .svn .git .env and so on.)

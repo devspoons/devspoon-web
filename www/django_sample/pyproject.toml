@@ -34,7 +34,12 @@ uvicorn = ["uvicorn[standard]>=0.25,<1.0"]
 # 동시 bump 후 본 핀을 풀 것.
 daphne = ["daphne>=3,<4", "channels<4.0"]
 uwsgi = ["uwsgi>=2.0,<3"]
-celery = ["celery[redis]>=5.3,<6"]
+celery = [
+    "celery[redis]>=5.3,<6",
+    # django_celery_beat 는 settings.py 의 INSTALLED_APPS / CELERY_BEAT_SCHEDULER 가 참조.
+    # 미설치 시 django.setup() 단계에서 ModuleNotFoundError 로 컨테이너 부팅 실패.
+    "django-celery-beat>=2.6",
+]
 
 [tool.uv]
 # 단일 애플리케이션 — 패키지로 빌드하지 않는다 (build-system 불필요)

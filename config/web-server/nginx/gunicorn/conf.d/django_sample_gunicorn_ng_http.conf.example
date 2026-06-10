@@ -1,5 +1,5 @@
 server {
-    listen       80 default_server;  # default_server 추가
+    listen       80;  # default_server 는 default.conf 가 책임 (포트 80 default_server 는 정확히 1개)
     server_name  localhost www.localhost; 
     
     access_log /log/nginx/django_sample.com.access.log main;
