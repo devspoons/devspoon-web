@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Integration test for nginx_php-7.3 stack
+set +e
+
+DEVSPOON="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+STACK_DIR="$DEVSPOON/compose/web-service/nginx_php-7.3"
+NGINX_CFG_DIR="$DEVSPOON/config/web-server/nginx/php"
+
+cleanup() {
+  echo
+  echo "=== cleanup ==="
+  cd "$STACK_DIR" 2>/dev/null && docker compose down -v --remove-orphans 2>&1 | tail -5 || true
+  rm -f "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf"
+  rm -f "$DEVSPOON/config/app-server/php-7.3/pool.d/localhost.conf"
+}
+trap cleanup EXIT
+
+echo "=== Phase 1: prep .env ==="
+cd "$STACK_DIR"
+[ -f .env ] || cp .env-example .env
+sed -i 's|^REDIS_PASSWORD=.*|REDIS_PASSWORD=php73-test-redis-pw|; s|^FLOWER_ID=.*|FLOWER_ID=tester|; s|^FLOWER_PWD=.*|FLOWER_PWD=tester-pw|' .env
+grep -E '^(REDIS_PASSWORD|PROJECT|PORT)' .env
+
+echo
+echo "=== Phase 2: WSL fmask ==="
+chmod 644 "$STACK_DIR/redis/conf/redis.conf" 2>/dev/null || true
+chmod 644 "$DEVSPOON/config/app-server/php-7.3/php_ini/php.ini" 2>/dev/null || true
+
+echo
+echo "=== Phase 3a: activate php nginx sample conf ==="
+cp "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf.example" \
+   "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf"
+ls "$NGINX_CFG_DIR/conf.d/"
+
+echo
+echo "=== Phase 3b: activate php-fpm pool (placeholder 치환) ==="
+# sample_php.conf.example 의 placeholder ([domain], portnumber) 를 localhost / 9000 으로 치환.
+POOL_DIR="$DEVSPOON/config/app-server/php-7.3/pool.d"
+sed -e 's|\[domain\]|[localhost]|g' -e 's|:portnumber|:9000|g' \
+  "$POOL_DIR/sample_php.conf.example" > "$POOL_DIR/localhost.conf"
+echo "  created: localhost.conf"
+grep -E "^\[|^listen|^user|^group" "$POOL_DIR/localhost.conf" | head -5
+
+echo
+echo "=== Phase 4: docker compose up -d ==="
+cd "$STACK_DIR"
+docker compose up -d --build 2>&1 | tail -15
+
+echo
+echo "=== Phase 5: wait for healthcheck (45s) ==="
+for i in 1 2 3 4 5; do
+  sleep 9
+  state=$(docker compose ps --format json 2>/dev/null | grep -o '"State":"[^"]*"' | sort -u | tr '\n' ' ')
+  echo "  [$((i*9))s] states: $state"
+done
+
+echo
+echo "=== Phase 6: container state ==="
+docker compose ps
+
+echo
+echo "=== Phase 7: logs preview ==="
+echo "--- php-app logs ---"
+docker compose logs php-app 2>&1 | tail -20
+echo
+echo "--- webserver logs ---"
+docker compose logs webserver 2>&1 | tail -10
+
+echo
+echo "=== Phase 8: curl test ==="
+RESP=$(curl -s -o /tmp/php73_resp.html -w "HTTP=%{http_code} TIME=%{time_total}s SIZE=%{size_download}" -H "Host: localhost" --max-time 15 http://localhost/ 2>&1)
+echo "$RESP"
+echo
+echo "Response head (10 lines):"
+head -10 /tmp/php73_resp.html 2>/dev/null
+echo
+echo "Gzip check:"
+curl -s -I -H "Accept-Encoding: gzip" --max-time 5 -H "Host: localhost" http://localhost/ 2>&1 | head -10
+
+echo
+echo "=== Phase 9: dhparam ==="
+HSHA=$(sha256sum "$STACK_DIR/ssl/dhparam/dhparam.pem" 2>/dev/null | awk '{print $1}' || echo MISSING)
+echo "dhparam sha256: $HSHA"
+
+echo
+echo "=== Phase 10: php process ==="
+docker compose exec -T php-app bash -c "ps -ef 2>&1 | grep -E 'php-fpm|UID' | head -5"
+
+echo
+echo "=== DONE ==="
