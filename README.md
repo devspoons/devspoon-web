@@ -33,6 +33,16 @@ Af you want to use python and php service at same time, this solution can help y
 
 - **redis and ssl** : Information such as configuration files, data, and keys for Redis and SSL are attached as volumes to the redis and ssl folders in docker-compose, so they can be reused when the container is terminated and restarted.
 
+- **Ready-to-run sample apps** : Django (`django_sample`), FastAPI (`fastapi_sample`), Flask (`flask_sample`), and PHP (`php_sample`) live under `www/` so each of the six stacks (gunicorn / uvicorn / uwsgi / daphne / php-7.3 / php-8.4) can be brought up immediately after `git clone`. Samples are domain-agnostic — bind to `localhost` first, swap to your domain when ready.
+
+- **Worker privilege drop (`www-data`)** : gunicorn / uvicorn / uwsgi / php-fpm workers all run as `www-data` (uid 33) — the container boots as root (for `uv sync` etc.) but workers are dropped to least privilege. Each compose `command` runs `chown -R www-data:www-data /www/${PROJECT_DIR}` before app startup so SQLite/media writes succeed under the dropped UID. uwsgi master uses `uid/gid = www-data`; gunicorn arbiter stays root and forks workers via setuid.
+
+- **Secret separation (`.env-example`)** : Every stack ships a tracked `.env-example` (`compose/web-service/nginx_*/.env-example`), while the actual `.env` is gitignored. Copy → fill in Redis password / Flower credentials / etc., never commit the live file. `${VAR:?}` checks in the compose files fail-fast if a required secret is missing.
+
+- **Bot blocker auto-update + supply-chain hardening** : Integrates [nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker). Container cron refreshes the blocklist every 6 hours. The installer scripts themselves are pinned to a fixed commit SHA and verified with sha256 at build time — no `master` floating reference.
+
+- **Dynamic gzip compression** : All four nginx config directories (gunicorn / uvicorn / uwsgi / php; daphne reuses gunicorn's) enable `gzip on` with level 5, `gzip_min_length 1024`, and `gzip_proxied any` for JSON/HTML/CSS/JS/XML/SVG payloads. Proxy-passed backend responses are compressed too. Pre-compressed `.gz` static assets are served via `gzip_static on`.
+
 ## Considerations
 
 - **No DB service** : This open source does not provide DB as docker to suggest stable operation. It is recommended to install it on a real server and access it using a network, such as port 3306. We hope that this will be done for distributed services as well. We hope that this will be consider for distributed services as well.
