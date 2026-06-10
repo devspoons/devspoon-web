@@ -10,7 +10,6 @@ cleanup() {
   echo
   echo "=== cleanup ==="
   cd "$STACK_DIR" 2>/dev/null && docker compose down -v --remove-orphans 2>&1 | tail -5 || true
-  rm -f "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf"
   rm -f "$DEVSPOON/config/app-server/php-7.3/pool.d/localhost.conf"
 }
 trap cleanup EXIT
@@ -27,9 +26,9 @@ chmod 644 "$STACK_DIR/redis/conf/redis.conf" 2>/dev/null || true
 chmod 644 "$DEVSPOON/config/app-server/php-7.3/php_ini/php.ini" 2>/dev/null || true
 
 echo
-echo "=== Phase 3a: activate php nginx sample conf ==="
-cp "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf.example" \
-   "$NGINX_CFG_DIR/conf.d/sample_php_ng_http.conf"
+echo "=== Phase 3a: verify php nginx sample conf present ==="
+# Sample conf 는 영구 .conf 파일로 트래킹되어 있어 nginx 컨테이너 시작 시 자동 로드된다.
+# (과거 .example → .conf cp 단계는 conf.d 샘플 명명 정책 통일로 제거됨)
 ls "$NGINX_CFG_DIR/conf.d/"
 
 echo

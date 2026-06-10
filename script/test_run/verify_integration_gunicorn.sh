@@ -10,7 +10,6 @@ cleanup() {
   echo
   echo "=== cleanup ==="
   cd "$STACK_DIR" 2>/dev/null && docker compose down -v --remove-orphans 2>&1 | tail -5 || true
-  rm -f "$NGINX_CFG_DIR/conf.d/django_sample_gunicorn_ng_http.conf"
 }
 trap cleanup EXIT
 
@@ -28,9 +27,9 @@ chmod 644 "$NGINX_CFG_DIR/nginx_conf/nginx.conf" 2>/dev/null || true
 chmod 644 "$NGINX_CFG_DIR/proxy_params/proxy_params" 2>/dev/null || true
 
 echo
-echo "=== Phase 3a: activate django_sample conf (.example → .conf) ==="
-cp "$NGINX_CFG_DIR/conf.d/django_sample_gunicorn_ng_http.conf.example" \
-   "$NGINX_CFG_DIR/conf.d/django_sample_gunicorn_ng_http.conf"
+echo "=== Phase 3a: verify django_sample conf present ==="
+# Sample conf 는 영구 .conf 파일로 트래킹되어 있어 nginx 컨테이너 시작 시 자동 로드된다.
+# (과거 .example → .conf cp 단계는 conf.d 샘플 명명 정책 통일로 제거됨)
 ls "$NGINX_CFG_DIR/conf.d/"
 
 echo
