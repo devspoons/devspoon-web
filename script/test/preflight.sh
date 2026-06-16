@@ -42,12 +42,15 @@ warn  "wrk (load test, optional)" "wrk --version 2>&1 | head -1"
 
 # ----- (2) 리포 파일 -----
 echo "[2] Repository files"
-check ".env (nginx_gunicorn)"  "test -f $ROOT/compose/web_service/nginx_gunicorn/.env"
-check ".env (nginx_uvicorn)"   "test -f $ROOT/compose/web_service/nginx_uvicorn/.env"
-check ".env (nginx_daphne)"    "test -f $ROOT/compose/web_service/nginx_daphne/.env"
-check ".env (nginx_uwsgi)"     "test -f $ROOT/compose/web_service/nginx_uwsgi/.env"
-check ".env (nginx_php-7.3)"   "test -f $ROOT/compose/web_service/nginx_php-7.3/.env"
-check ".env (nginx_php-8.4)"   "test -f $ROOT/compose/web_service/nginx_php-8.4/.env"
+# .env 는 운영 자격증명이라 git 추적되지 않는다(런타임에 .env-example 에서 생성).
+# 따라서 테스트 시작 전제로는 추적되는 템플릿 .env-example 의 존재를 확인한다.
+# 경로는 web-service(dash) — aisum 정합화 시 web_service(underscore) 에서 개명됨.
+check ".env-example (nginx_gunicorn)"  "test -f $ROOT/compose/web-service/nginx_gunicorn/.env-example"
+check ".env-example (nginx_uvicorn)"   "test -f $ROOT/compose/web-service/nginx_uvicorn/.env-example"
+check ".env-example (nginx_daphne)"    "test -f $ROOT/compose/web-service/nginx_daphne/.env-example"
+check ".env-example (nginx_uwsgi)"     "test -f $ROOT/compose/web-service/nginx_uwsgi/.env-example"
+check ".env-example (nginx_php-7.3)"   "test -f $ROOT/compose/web-service/nginx_php-7.3/.env-example"
+check ".env-example (nginx_php-8.4)"   "test -f $ROOT/compose/web-service/nginx_php-8.4/.env-example"
 check "Dockerfile (gunicorn)"  "test -f $ROOT/docker/gunicorn/Dockerfile"
 check "Dockerfile (uwsgi)"     "test -f $ROOT/docker/uwsgi/Dockerfile"
 check "Dockerfile (nginx)"     "test -f $ROOT/docker/nginx/Dockerfile"
@@ -72,12 +75,14 @@ check "Dockerfile UV_PROJECT_ENVIRONMENT=/usr/local (gunicorn)" \
       "grep -q 'UV_PROJECT_ENVIRONMENT=/usr/local' $ROOT/docker/gunicorn/Dockerfile"
 check "Dockerfile UV_PROJECT_ENVIRONMENT=/usr/local (uwsgi)" \
       "grep -q 'UV_PROJECT_ENVIRONMENT=/usr/local' $ROOT/docker/uwsgi/Dockerfile"
+# FROM 은 1행이 아닐 수 있다(라이선스/설명 헤더 주석 뒤, 또는 multi-stage 의 builder 단계).
+# head -1 가정은 깨지므로 파일 전체에서 FROM 라인을 grep 한다.
 check "Dockerfile FROM ubuntu:24.04 (gunicorn)" \
-      "head -1 $ROOT/docker/gunicorn/Dockerfile | grep -q '^FROM ubuntu:24.04'"
+      "grep -q '^FROM ubuntu:24.04' $ROOT/docker/gunicorn/Dockerfile"
 check "Dockerfile FROM ubuntu:24.04 (uwsgi)" \
-      "head -1 $ROOT/docker/uwsgi/Dockerfile | grep -q '^FROM ubuntu:24.04'"
+      "grep -q '^FROM ubuntu:24.04' $ROOT/docker/uwsgi/Dockerfile"
 check "Dockerfile FROM nginx:1.27 (nginx)" \
-      "head -1 $ROOT/docker/nginx/Dockerfile | grep -qE '^FROM nginx:1\.27'"
+      "grep -qE '^FROM nginx:1\.27' $ROOT/docker/nginx/Dockerfile"
 check "compose: no poetry references" \
       "! grep -rq 'poetry install\|poetry config' $ROOT/compose/"
 check "compose: no 'uv run' in active commands" \

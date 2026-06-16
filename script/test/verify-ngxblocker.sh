@@ -6,7 +6,7 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 
 CONT=nginx-gunicorn-webserver
-STACK_DIR=compose/web_service/nginx_gunicorn
+STACK_DIR=compose/web-service/nginx_gunicorn
 
 pass() { printf "  \e[32m[PASS]\e[0m %s\n" "$1"; }
 fail() { printf "  \e[31m[FAIL]\e[0m %s\n" "$1"; FAILED=$((FAILED+1)); }

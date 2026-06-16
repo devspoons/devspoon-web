@@ -115,6 +115,24 @@ if [ ! -f .env ]; then
     echo "  (auto-created .env)"
 fi
 
+# php 스택은 php-fpm pool 의 placeholder([domain]/:portnumber)를 치환한 .conf 가 있어야
+# php-fpm 이 기동한다. 없으면 pool 파싱 실패로 컨테이너가 exit 78 로 crash-loop → 영원히
+# unhealthy 가 되어 본 런타임 체크가 오탐(FAIL)한다. 통합 테스트(verify_integration_php*.sh)와
+# 동일하게 localhost.conf 를 생성해 둔다.
+case "$STACK" in
+    nginx_php-7.3) PHPV=php-7.3 ;;
+    nginx_php-8.4) PHPV=php-8.4 ;;
+    *)             PHPV="" ;;
+esac
+if [ -n "$PHPV" ]; then
+    POOL_DIR="$ROOT/config/app-server/$PHPV/pool.d"
+    if [ -f "$POOL_DIR/sample_php.conf.example" ]; then
+        sed -e 's|\[domain\]|[localhost]|g' -e 's|:portnumber|:9000|g' \
+            "$POOL_DIR/sample_php.conf.example" > "$POOL_DIR/localhost.conf"
+        echo "  (auto-created php-fpm pool localhost.conf for $PHPV)"
+    fi
+fi
+
 echo
 echo "--- compose down -v (cleanup) ---"
 docker compose --profile redis --profile celery down -v 2>&1 | tail -5

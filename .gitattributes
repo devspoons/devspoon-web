@@ -1,0 +1,24 @@
+# 줄바꿈 정규화 — 셸 스크립트/설정은 항상 LF 로 체크아웃되어야 WSL/Linux 컨테이너에서 동작한다.
+# (Windows 체크아웃 시 CRLF 로 변환되면 bash 가 $'\r' 오류를 내고, mount 된 conf/redis 도 깨질 수 있음)
+* text=auto eol=lf
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.conf      text eol=lf
+*.ini       text eol=lf
+*.py        text eol=lf
+*.env-example text eol=lf
+Dockerfile* text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+
+# logrotate dropin (확장자 없음) 도 LF 고정
+script/logrotate/** text eol=lf
+
+# 바이너리 — 정규화 금지
+*.pem       binary
+*.png       binary
+*.jpg       binary
+*.gif       binary
+*.ico       binary
+*.sqlite3   binary
