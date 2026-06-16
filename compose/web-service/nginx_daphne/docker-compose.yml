@@ -82,6 +82,15 @@ services:
       timeout: 3s
       retries: 5
       start_period: 30s
+    # 본 스택은 gunicorn 의 nginx conf 를 공유 마운트한다(webserver volumes 참조).
+    # 그 conf 의 upstream 은 `gunicorn-app:8000` 으로 하드코딩되어 있으나, daphne 스택의
+    # app 서비스명은 `daphne-app` 이라 이름이 어긋나 nginx 가 [emerg] host not found in
+    # upstream "gunicorn-app" 으로 기동 실패한다. conf 중복 없이 공유 설계를 유지하기 위해
+    # daphne-app 에 `gunicorn-app` 네트워크 alias 를 부여하여 동일 upstream 이 resolve 되게 한다.
+    networks:
+      default:
+        aliases:
+          - gunicorn-app
 
   # CELERY_BROKER_URL 은 REDIS_PASSWORD 로부터 합성 (SSOT) — drift 차단.
   # 자세한 설명은 nginx_gunicorn/docker-compose.yml 참조.
