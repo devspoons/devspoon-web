@@ -13,6 +13,8 @@ Uvicorn (UvicornWorker via Gunicorn) Configuration
 =====================================================
 """
 
+import os
+
 # ============================================================================
 # 네트워크 바인딩
 # ============================================================================
@@ -40,7 +42,9 @@ worker_class = "uvicorn.workers.UvicornWorker"
 daemon = False
 
 # ASGI 엔트리포인트 (Django: config.asgi, FastAPI: main:app 등 프로젝트에 맞춰 변경)
-wsgi_app = "config.asgi:application"
+# 환경변수 ASGI_APP 로 오버라이드 가능 — 미설정 시 Django 기본값 유지(기존 동작 무손상).
+#   예) FastAPI: 컨테이너 env 에 ASGI_APP=app.main:app
+wsgi_app = os.environ.get("ASGI_APP", "config.asgi:application")
 
 # ============================================================================
 # 타임아웃
