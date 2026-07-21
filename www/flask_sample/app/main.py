@@ -30,7 +30,7 @@ info = Info(
     title="Flask Sample",
     version="0.1.0",
     description=(
-        "aisum-infrakit 더미 테스트용 Flask 프로젝트.\n\n"
+        "devspoon-web 더미 테스트용 Flask 프로젝트.\n\n"
         "- 데이터 저장: 로컬 SQLite\n"
         "- 인증: JWT (HS256)\n"
         "- 문서: `/scalar` 에서 Scalar UI 로 OpenAPI 스키마를 탐색할 수 있다.\n"

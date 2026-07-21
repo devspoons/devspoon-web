@@ -9,9 +9,9 @@ mkdir -p "$LOG"
 build_one() {
     local name="$1" dir="$2" dockerfile="${3:-Dockerfile}"
     local start end elapsed
-    echo "===== BUILD: aisum-test/$name ====="
+    echo "===== BUILD: devspoon-test/$name ====="
     start=$(date +%s)
-    docker build -f "$ROOT/docker/$dir/$dockerfile" -t "aisum-test/$name" "$ROOT/docker/$dir/" > "$LOG/build_${name}.log" 2>&1
+    docker build -f "$ROOT/docker/$dir/$dockerfile" -t "devspoon-test/$name" "$ROOT/docker/$dir/" > "$LOG/build_${name}.log" 2>&1
     local ec=$?
     end=$(date +%s)
     elapsed=$((end - start))
@@ -38,7 +38,7 @@ echo ""
 echo "===== build summary ====="
 cat "$LOG/build_summary.txt"
 echo ""
-docker images | grep -E "aisum-test/" || echo "no aisum-test images"
+docker images | grep -E "devspoon-test/" || echo "no devspoon-test images"
 
 # build_summary.txt 의 각 행은 "<name> <exit_code> <elapsed>". exit_code 가 0 이 아닌 빌드 수를 센다.
 fails=$(awk '$2!=0{c++} END{print c+0}' "$LOG/build_summary.txt")

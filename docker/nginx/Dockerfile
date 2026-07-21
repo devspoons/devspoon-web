@@ -27,17 +27,17 @@ RUN apt-get update && \
 #    - logrotate     (매일  02:00) : sanitized /run/logrotate.d/* 처리 (WSL/Windows
 #                                     bind-mount 가 0777 로 노출되는 /etc/logrotate.d
 #                                     를 logrotate 가 거부하는 문제 회피)
-#    - aisum-logrotate.sh : /run/logrotate.d/*.conf 를 개별 호출 — Debian 기본
+#    - logrotate-all.sh : /run/logrotate.d/*.conf 를 개별 호출 — Debian 기본
 #                           /etc/cron.daily/logrotate 는 /etc/logrotate.conf 만 보고
 #                           /etc/logrotate.d/* (0777 mount) 를 직접 처리하므로
 #                           sanitize 효과가 없음 → 별도 entry 가 필요.
 # ============================================================================
 RUN ( crontab -l 2>/dev/null; \
       echo "0 5 * * 1 certbot renew --quiet --deploy-hook \"nginx -t && nginx -s reload\" >> /log/nginx/crontab_\$(date +\%Y\%m\%d).log 2>&1"; \
-      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/nginx/logrotate.log 2>&1" \
+      echo "0 2 * * * /usr/local/bin/logrotate-all.sh >> /log/nginx/logrotate.log 2>&1" \
     ) | crontab - \
- && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
- && chmod +x /usr/local/bin/aisum-logrotate.sh
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/logrotate-all.sh \
+ && chmod +x /usr/local/bin/logrotate-all.sh
 
 # ============================================================================
 # 3. nginx-ultimate-bad-bot-blocker 설치 (build 시점에 초기 데이터 bake-in)
@@ -93,7 +93,7 @@ RUN crontab -l 2>/dev/null | { cat; echo "0 */6 * * * /usr/local/sbin/update-ngx
 #      (nginx 기동 직전에 알파벳 순으로 실행됨)
 #    - (1) /etc/logrotate.d/* 는 Windows/WSL bind mount 가 0777 로 노출되어
 #          logrotate 가 "Potentially dangerous mode" 로 거부한다. /run/logrotate.d/
-#          로 mode 0644 사본을 만들어 두면 aisum-logrotate.sh 가 안전하게 처리.
+#          로 mode 0644 사본을 만들어 두면 logrotate-all.sh 가 안전하게 처리.
 #    - (2) cron 데몬 기동 — certbot renew + daily logrotate + ngxblocker 갱신 트리거.
 # ============================================================================
 RUN printf '#!/bin/sh\nset -e\n# (1) logrotate dropin 권한 정리: bind mount 가 0777 인 경우 sanitized 사본을 /run/logrotate.d/ 로 복사 (mode 0644)\nmkdir -p /run/logrotate.d\nif [ -d /etc/logrotate.d ]; then\n  for f in /etc/logrotate.d/*; do\n    [ -f "$f" ] || continue\n    cp -f "$f" "/run/logrotate.d/$(basename "$f")"\n    chmod 644 "/run/logrotate.d/$(basename "$f")"\n  done\nfi\n# (2) certbot/logrotate/ngxblocker 용 cron 데몬 기동\ncommand -v cron >/dev/null 2>&1 && cron || true\n' > /docker-entrypoint.d/40-start-cron.sh \

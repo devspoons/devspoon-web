@@ -133,10 +133,10 @@ RUN apt-get update && \
 #   - 일일 02:00 실행, cron 데몬은 entrypoint-with-cron.sh 가 기동
 # ============================================================================
 RUN ( crontab -l 2>/dev/null; \
-      echo "0 2 * * * /usr/local/bin/aisum-logrotate.sh >> /log/uwsgi/logrotate.log 2>&1" \
+      echo "0 2 * * * /usr/local/bin/logrotate-all.sh >> /log/uwsgi/logrotate.log 2>&1" \
     ) | crontab - \
- && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/aisum-logrotate.sh \
- && chmod +x /usr/local/bin/aisum-logrotate.sh
+ && printf '#!/bin/sh\nfor f in /run/logrotate.d/*; do [ -f "$f" ] && /usr/sbin/logrotate -s /var/lib/logrotate/status "$f"; done\n' > /usr/local/bin/logrotate-all.sh \
+ && chmod +x /usr/local/bin/logrotate-all.sh
 
 # ============================================================================
 # 2.6. ENTRYPOINT

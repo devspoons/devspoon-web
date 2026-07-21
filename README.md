@@ -309,7 +309,7 @@ Af you want to use python and php service at same time, this solution can help y
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        ```
 
-   - Daphne (ASGI WebSocket) service — devspoon 고유 스택 (aisum-infrakit 에는 없음)
+   - Daphne (ASGI WebSocket) service — devspoon 고유 스택
 
      ```
      Stack: compose/web-service/nginx_daphne/
@@ -515,33 +515,6 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
 - `Dockerfile-7.3` / `Dockerfile-8.4` 에서 `dpkg-reconfigure tzdata` 제거. gunicorn / uwsgi / nginx Dockerfile 과 동일하게 `ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone` 패턴으로 통일.
 - `Dockerfile-7.3` 의 중복 install layer 6개를 단일 RUN 으로 압축.
-
-#### 0.5.9 aisum-infrakit 와의 정합화 동기화 (2026-06)
-
-aisum-infrakit (본 프로젝트의 사내 파생본) 의 운영 검증 산출물을 역머지하여 다음 항목이 일괄 정합화되었습니다:
-
-| 항목 | 변경 | 의도 |
-|---|---|---|
-| 폴더명 `compose/web_service/` → `compose/web-service/` | dash naming | aisum-infrakit 와 동일 — 외부 문서/스크립트 호환 |
-| 파일명 `.env.example` → `.env-example` (6개 스택) | dash naming | aisum-infrakit 와 동일 |
-| **`config/web-server/nginx/uvicorn/` 신설** | 디렉토리 추가 | 기존엔 `nginx_uvicorn` 컴포즈 스택만 있고 nginx conf 가 누락 — uvicorn 도메인 conf 를 생성할 방법이 없었다 |
-| `config/app-server/uvicorn/gunicorn_uvicorn.conf.py` 신설 | gunicorn+UvicornWorker 설정 | ASGI 위에서 gunicorn 으로 워커를 띄우는 패턴 지원 |
-| **dhparam 백업/복원 메커니즘** | `ssl/certs:/etc/ssl/certs` 안티패턴 제거, `ssl/dhparam:/etc/nginx/dhparam-backup` 으로 교체 + nginx Dockerfile 에 빌드 시 굽기 + entrypoint hook (§3 dhparam 영속화 절) | certbot 시스템 CA 가림 제거, docker compose down/up 후에도 동일 키 유지 |
-| `script/test_run/` 신설 (21 개 스크립트) | aisum-infrakit 의 회귀 검증 자산 도입 — s0_prereq, s1b_exit_check, s2_build, s3_stack_smoke, s5_https, s6_regression, ssl_diag, verify_block 등 + audit 라운드에서 추가된 verify_dhparam_lifecycle / verify_dhparam_host_wins / verify_conf_generators / verify_compose_yml / verify_nginx_standalone | 검증 자동화 (§10.3 참조). 기존 `script/test/preflight.sh` / `verify-ngxblocker.sh` 와 공존 |
-| `script/logrotate/*` 에 `su root root` 추가 | logrotate 의 "potentially insecure mode" 거부 회피 (WSL `/mnt/c` 0777 mount 환경) | bind mount 환경에서 로테이션 실패 해소 |
-| `docker/gunicorn/Dockerfile` / `docker/uwsgi/Dockerfile` 의존성 보강 | builder: `libbz2-dev liblzma-dev` 추가 / runtime: `libbz2-1.0 liblzma5 libnsl2 libuuid1` 추가 (uwsgi 는 `libpcre3* libxml2*` 추가) | Python stdlib (`bz2` / `lzma`) 와 uwsgi 라우팅/플러그인 dlopen 실패 방지 |
-| `entrypoint-with-cron.sh` 3종 sanitize 로직 추가 | bind-mount 된 logrotate dropin 을 `/run/logrotate.d/` 로 mode 0644 사본화 | WSL 0777 mount 에서 logrotate "potentially dangerous mode" 거부 회피 |
-| `www/fastapi_sample/` / `www/flask_sample/` / `www/certbot/` 신설 | aisum-infrakit 의 샘플 앱 도입 | uvicorn (FastAPI) / 일반 WSGI (Flask) 스택의 동작 확인용. `www/certbot/` 은 ACME webroot 표준 위치 |
-| `script/test_run/*` 의 하드코딩 ROOT 경로 | `/mnt/c/.../aisum-infrakit` → `/mnt/c/.../devspoon-web` 로 일괄 치환됨 | 동일 스크립트가 devspoon-web 에서 즉시 동작 |
-
-보존 (덮어쓰지 않음):
-- `nginx_daphne` 스택 (devspoon 고유), `script/logrotate/daphne/*`, `docs/operations-guide/nginx-hardening/*`
-- `docker/php-fpm/Dockerfile-7.3` / `Dockerfile-8.4` 의 PHP 버전 분리 (aisum 은 단일 PHP 7.2 만)
-- `docker/{gunicorn,uwsgi,php-fpm}/entrypoint-with-cron.sh` 구조 (aisum 은 Dockerfile 인라인 패턴)
-- `redis.conf` 의 `protected-mode yes` (aisum 은 `no`. devspoon 정책 우월)
-- `CELERY_BROKER_URL` 의 compose 합성(SSOT) (aisum 은 .env 에 별도 보관)
-- `script/letsencrypt.sh` (devspoon 버전이 더 진화)
-- `nginx_php-7.3/8.4` 의 2개 병행 스택 + `config/app-server/php-7.3` / `php-8.4` 분리
 
 ---
 
@@ -1032,9 +1005,9 @@ bash script/test/verify-ngxblocker.sh
 
 ---
 
-### 10.3 `script/test_run/` — 단계화된 회귀 검증 배터리 (aisum-infrakit 도입)
+### 10.3 `script/test_run/` — 단계화된 회귀 검증 배터리
 
-§10 의 `script/test/` 가 "특정 영역만 신속 검증" 인 데 비해, `script/test_run/` 은 **단계 번호 (s0/s1b/s2/s3/s5/s6) 로 정렬된 종단간 회귀 배터리** 입니다. aisum-infrakit 의 검증 자산을 본 프로젝트로 역이식하여 동일한 회귀 시나리오를 devspoon-web 에서도 실행할 수 있게 했습니다.
+§10 의 `script/test/` 가 "특정 영역만 신속 검증" 인 데 비해, `script/test_run/` 은 **단계 번호 (s0/s1b/s2/s3/s5/s6) 로 정렬된 종단간 회귀 배터리** 입니다. 스택 전체를 동일한 회귀 시나리오로 반복 검증할 수 있습니다.
 
 #### 구성
 
@@ -1043,7 +1016,7 @@ bash script/test/verify-ngxblocker.sh
 | **s0** | `s0_prereq.sh` | docker / docker compose 버전, 호스트 포트(80/443/5555) 가용, `log/<service>/` 존재, `uv` 설치, `www/django_sample` uv sync | 사전 점검 (read-only 가까움) |
 | **s1b** | `s1b_exit_check.sh` | 컨테이너 비정상 종료 시 exit code / 로그 패턴 검사 | 진단용 |
 | **s1b** | `s1b_nginx_conf_generators.sh` | 5개 스택(gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 의 `nginx_http_conf.sh` / `nginx_https_conf.sh` 가 정상 산출물을 만드는지 — 치환 누락, 비어 있는 placeholder, 파일 권한 검사 | conf 생성기 회귀 |
-| **s2** | `s2_build.sh` | 스택별 Dockerfile 을 `docker build -f` 로 격리 빌드 (php-fpm 은 7.3/8.4 두 변형 모두), `aisum-test/*` 태그로 산출 | 빌드 회귀. compose layer 와 무관 |
+| **s2** | `s2_build.sh` | 스택별 Dockerfile 을 `docker build -f` 로 격리 빌드 (php-fpm 은 7.3/8.4 두 변형 모두), `devspoon-test/*` 태그로 산출 | 빌드 회귀. compose layer 와 무관 |
 | **s2a** | `s2a_image_inspect.sh` | 빌드된 이미지의 baselayer 정합, ENV / WORKDIR / CMD 검사 | 이미지 메타 |
 | **s3** | `s3_stack_smoke.sh <stack> <appname> <appcontainer> <stack_name>` | 단일 스택 기동 → `nginx -t` → `curl -H "Host: ..."` 응답 200 여부 → cleanup | per-stack smoke |
 | **s5** | `s5_https.sh <stack>` | HTTPS 측: dhparam 생성/마운트/복원, self-signed cert 생성, `sample_nginx_https.conf` 치환 산출물 검증, nginx -t 통과 — **certbot 발급은 제외** (도메인 없는 환경 가정) | HTTPS 정합성 |

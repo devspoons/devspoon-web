@@ -23,7 +23,7 @@ app = FastAPI(
     version="0.1.0",
     summary="회원가입 / 로그인 / 계정 삭제 데모 REST API.",
     description=(
-        "이 서비스는 aisum-infrakit 더미 테스트용 FastAPI 프로젝트다.\n\n"
+        "이 서비스는 devspoon-web 더미 테스트용 FastAPI 프로젝트다.\n\n"
         "- 데이터 저장: 로컬 SQLite\n"
         "- 인증: JWT (HS256)\n"
         "- 문서: `/scalar` 에서 Scalar UI 로 OpenAPI 스키마를 탐색할 수 있다.\n"

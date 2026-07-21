@@ -1,5 +1,5 @@
 """
-Celery 앱 정의 — aisum-infrakit 의 celery / celery-beat / flower 프로파일에서 사용.
+Celery 앱 정의 — devspoon-web 의 celery / celery-beat / flower 프로파일에서 사용.
 compose 의 command 는 `celery -A config worker ...` / `celery -A config beat ...` 로
 본 모듈의 `app` (== celery_app) 을 참조한다.
 브로커는 settings.CELERY_BROKER_URL (env CELERY_BROKER_URL) 로 주입된다.

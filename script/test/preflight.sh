@@ -44,7 +44,7 @@ warn  "wrk (load test, optional)" "wrk --version 2>&1 | head -1"
 echo "[2] Repository files"
 # .env 는 운영 자격증명이라 git 추적되지 않는다(런타임에 .env-example 에서 생성).
 # 따라서 테스트 시작 전제로는 추적되는 템플릿 .env-example 의 존재를 확인한다.
-# 경로는 web-service(dash) — aisum 정합화 시 web_service(underscore) 에서 개명됨.
+# 경로는 web-service(dash) — dash-naming 정합화 시 web_service(underscore) 에서 개명됨.
 check ".env-example (nginx_gunicorn)"  "test -f $ROOT/compose/web-service/nginx_gunicorn/.env-example"
 check ".env-example (nginx_uvicorn)"   "test -f $ROOT/compose/web-service/nginx_uvicorn/.env-example"
 check ".env-example (nginx_daphne)"    "test -f $ROOT/compose/web-service/nginx_daphne/.env-example"

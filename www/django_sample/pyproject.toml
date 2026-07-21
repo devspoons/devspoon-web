@@ -1,7 +1,7 @@
 [project]
 name = "django-sample"
 version = "0.1.0"
-description = "Django sample project for aisum-infrakit (uv-managed)"
+description = "Django sample project for devspoon-web (uv-managed)"
 requires-python = ">=3.14"
 dependencies = [
     "asgiref==3.4.1",

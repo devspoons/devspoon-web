@@ -1,6 +1,6 @@
 # fastapi_sample
 
-aisum-infrakit 더미 테스트용 FastAPI 프로젝트.
+devspoon-web 더미 테스트용 FastAPI 프로젝트.
 
 ## 기능
 - 회원가입 / 로그인 (JWT) / 본인 조회 / 본인 삭제

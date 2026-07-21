@@ -217,7 +217,7 @@ else
 fi
 
 # Logrotate Section 4 checks (only on gunicorn stack)
-# 과거 'aisum-logrotate.sh' 는 entrypoint-with-cron.sh + Debian logrotate 패키지의 cron.daily 훅으로
+# 과거 'logrotate-all.sh' 는 entrypoint-with-cron.sh + Debian logrotate 패키지의 cron.daily 훅으로
 # 대체되었다 (docker/{gunicorn,uwsgi,php-fpm}/entrypoint-with-cron.sh 참조). 따라서 force rotation 은
 # /usr/sbin/logrotate -f /etc/logrotate.d/<service> 로 직접 호출한다.
 if [ "$STACK" = "gunicorn" ]; then
