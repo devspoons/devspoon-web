@@ -25,6 +25,13 @@ chmod 644 "$STACK_DIR/redis/conf/redis.conf" || true
 chmod 644 "$DEVSPOON/config/app-server/uvicorn/"*.py 2>/dev/null || true
 
 echo
+echo "=== Phase 3a: ensure django_sample secrets.json (test-only) ==="
+# settings.py:26 가 secrets.json 을 강제로 읽음 → 부재 시 컨테이너 부팅 실패.
+# shellcheck source=../lib/django_secrets.sh
+. "$DEVSPOON/script/lib/django_secrets.sh"
+ensure_django_secrets "$DEVSPOON"
+
+echo
 echo "=== Phase 3: generate HTTP conf for django_sample on uvicorn ==="
 cd "$NGINX_CFG_DIR"
 chmod +x nginx_http_conf.sh

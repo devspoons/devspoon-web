@@ -36,16 +36,10 @@ echo
 echo "=== Phase 3b: ensure django_sample secrets.json (test-only) ==="
 # settings.py:26 가 secrets.json 을 강제로 읽음 → 부재 시 ImportError.
 # 50f7505 commit 후 추적 해제됐으므로 새 환경에서는 운영자가 직접 만들어야 한다.
-# 테스트에서는 자동 생성.
-if [ ! -f "$DEVSPOON/www/django_sample/secrets.json" ]; then
-  cat > "$DEVSPOON/www/django_sample/secrets.json" <<'EOF'
-{
-    "SECRET_KEY": "django-insecure-test-only-do-not-use-in-production-zzzzzzzzz"
-}
-EOF
-  echo "  created test secrets.json"
-fi
-chmod 644 "$DEVSPOON/www/django_sample/secrets.json"
+# 테스트에서는 secrets.json.example 로부터 자동 생성 (공유 헬퍼).
+# shellcheck source=../lib/django_secrets.sh
+. "$DEVSPOON/script/lib/django_secrets.sh"
+ensure_django_secrets "$DEVSPOON"
 
 echo
 echo "=== Phase 4: docker compose up -d (without celery profile) ==="

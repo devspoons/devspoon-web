@@ -32,6 +32,10 @@ REPO_LABEL="devspoon-web"
 CILOG="$ROOT/log/ci"
 mkdir -p "$CILOG"
 
+# django_sample secrets.json 부트스트랩 (ensure_django_secrets)
+# shellcheck source=../lib/django_secrets.sh
+. "$ROOT/script/lib/django_secrets.sh"
+
 START_EPOCH=$(date +%s)
 START_HUMAN=$(date '+%Y-%m-%d %H:%M:%S %Z')
 
@@ -109,6 +113,12 @@ step_healthcheck(){ RUNTIME=1 STACK=nginx_php-8.4 bash "$ROOT/script/test_run/ve
 step_samples() {
     local rc=0
     command -v uv >/dev/null 2>&1 || { echo "uv 미설치 — 설치 시도"; pip install -q uv || rc=1; }
+
+    echo "### [django_sample] secrets.json 준비(테스트 전용) ###"
+    # settings.py:26 이 secrets.json 을 강제로 읽는다. 50f7505 이후 추적 해제(.gitignore)
+    # 되어 CI 체크아웃에는 존재하지 않으므로 .example 로부터 생성한다.
+    # (verify_integration_gunicorn.sh Phase 3b 와 동일 정책 — 단일 출처 = .example)
+    ensure_django_secrets "$ROOT" || rc=1
 
     echo "### [django_sample] manage.py check ###"
     ( cd "$ROOT/www/django_sample" \
