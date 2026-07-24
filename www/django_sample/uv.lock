@@ -28,11 +28,11 @@ wheels = [
 
 [[package]]
 name = "asgiref"
-version = "3.4.1"
+version = "3.12.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/07/93/3618b68b4ba6b54bc97b5fd7d90e4981471edfaf51c8321a29a3c76cf47c/asgiref-3.4.1.tar.gz", hash = "sha256:4ef1ab46b484e3c706329cedeff284a5d40824200638503f5768edb6de7d58e9", size = 32529, upload-time = "2021-07-01T16:17:42.656Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/26/3b59f2bdae5f640389becb1f673cded775287f5fc4f816309d9ca9a3f93d/asgiref-3.12.1.tar.gz", hash = "sha256:59dcb51c272ad209d59bed5708a64a333083e86017d7fcdd67498eeab7784340", size = 42378, upload-time = "2026-07-14T09:56:18.087Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fe/66/577f32b54c50dcd8dec38447258e82ed327ecb86820d67ae7b3dea784f13/asgiref-3.4.1-py3-none-any.whl", hash = "sha256:ffc141aa908e6f175673e7b1b3b7af4fdb0ecb738fc5c8b88f69f055c2415214", size = 25019, upload-time = "2021-07-01T16:17:40.824Z" },
+    { url = "https://files.pythonhosted.org/packages/c0/1b/54f4ad77cd8a584fa70746c47df988e002cf1ee1eba43364d46f87803647/asgiref-3.12.1-py3-none-any.whl", hash = "sha256:fe386d1c2bff7259ea95929266d12a8cf9a8b5a1c2598402967d8792e7a7c094", size = 25478, upload-time = "2026-07-14T09:56:16.926Z" },
 ]
 
 [[package]]
@@ -168,16 +168,15 @@ wheels = [
 
 [[package]]
 name = "channels"
-version = "3.0.4"
+version = "4.3.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
-    { name = "daphne" },
     { name = "django" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f6/4a/04e9abcb212e13a1baa384a2106e1531eef637f5c1e967ab1a4e838aa614/channels-3.0.4.tar.gz", hash = "sha256:fdd9a94987a23d8d7ebd97498ed8b8cc83163f37e53fc6c85098aba7a3bb8b75", size = 31835, upload-time = "2021-07-11T07:53:01.875Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/74/92/b18d4bb54d14986a8b35215a1c9e6a7f9f4d57ca63ac9aee8290ebb4957d/channels-4.3.2.tar.gz", hash = "sha256:f2bb6bfb73ad7fb4705041d07613c7b4e69528f01ef8cb9fb6c21d9295f15667", size = 27023, upload-time = "2025-11-20T15:13:05.102Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/8b/ace5ac46e3becaa3d92a0c0943686ce7f9e388e3f8392dfbe803a4d49ed9/channels-3.0.4-py3-none-any.whl", hash = "sha256:0ff0422b4224d10efac76e451575517f155fe7c97d369b5973b116f22eeaf86c", size = 38268, upload-time = "2021-07-11T07:53:00.131Z" },
+    { url = "https://files.pythonhosted.org/packages/16/34/c32915288b7ef482377b6adc401192f98c6a99b3a145423d3b8aed807898/channels-4.3.2-py3-none-any.whl", hash = "sha256:fef47e9055a603900cf16cef85f050d522d9ac4b3daccf24835bd9580705c176", size = 31313, upload-time = "2025-11-20T15:13:02.357Z" },
 ]
 
 [[package]]
@@ -311,30 +310,30 @@ wheels = [
 
 [[package]]
 name = "daphne"
-version = "3.0.2"
+version = "4.2.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "autobahn" },
     { name = "twisted", extra = ["tls"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/76/da/69bd8eee1e52e595690965d70ea873c6b128053cd199914365c58c8b7b28/daphne-3.0.2.tar.gz", hash = "sha256:76ffae916ba3aa66b46996c14fa713e46004788167a4873d647544e750e0e99f", size = 25076, upload-time = "2021-04-07T18:31:43.509Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ed/23/81d442839029f3f343e536650ee49dbfb5a444520876fadb5b5f19f33c02/daphne-4.2.3.tar.gz", hash = "sha256:1c458f81926b37301cadc8ec1b6316d9a5db53fba061fc4826610395fe5d5c81", size = 47898, upload-time = "2026-07-21T13:15:19.753Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5c/a3/52d62474eae7f665837434c2685d1b7ec55d1c0336ea84e1cd5693699554/daphne-3.0.2-py3-none-any.whl", hash = "sha256:a9af943c79717bc52fe64a3c236ae5d3adccc8b5be19c881b442d2c3db233393", size = 26198, upload-time = "2021-04-07T18:31:41.983Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/0c/59e966c167880904f2e6a235c63169760dce58ba8062a7a153a6183539cc/daphne-4.2.3-py3-none-any.whl", hash = "sha256:34442c539a98111f4d8cac98a7204aeeb53811229bd96063e6fbe740e97078c9", size = 29715, upload-time = "2026-07-21T13:15:18.588Z" },
 ]
 
 [[package]]
 name = "django"
-version = "4.0.6"
+version = "6.0.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "asgiref" },
     { name = "sqlparse" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a4/17/b10aa26d7a566a3c19e9d29fac39c8643cbceb6cd7649a378d676839b5db/Django-4.0.6.tar.gz", hash = "sha256:a67a793ff6827fd373555537dca0da293a63a316fe34cb7f367f898ccca3c3ae", size = 10389543, upload-time = "2022-07-04T07:57:34.578Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/89/55/664f24ff81c9ea19cb7dfc851afeae1f3c2390c7aee01d4ded68b5c1580d/django-6.0.7.tar.gz", hash = "sha256:2998503fc083124fb58037084bfa00de323c7c743f05f1b4284e77bff0ab8890", size = 10921299, upload-time = "2026-07-07T13:51:26.485Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/12/97/e341b13d605a9d0732a37975ce6bfae643c296721b8644f42d5d720c99bf/Django-4.0.6-py3-none-any.whl", hash = "sha256:ca54ebedfcbc60d191391efbf02ba68fb52165b8bf6ccd6fe71f098cac1fe59e", size = 8041873, upload-time = "2022-07-04T07:57:23.824Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/ec/1ce5334b6a2c52ce619c23a0be8d366a57a0e080ebb2d88266e5c849157c/django-6.0.7-py3-none-any.whl", hash = "sha256:a037427c2288443a8c02a1b02295a31c239663aa682bc50b1976afb7cf6a769e", size = 8373344, upload-time = "2026-07-07T13:51:20.007Z" },
 ]
 
 [[package]]
@@ -387,16 +386,16 @@ uwsgi = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asgiref", specifier = "==3.4.1" },
+    { name = "asgiref", specifier = ">=3.9.1" },
     { name = "celery", extras = ["redis"], marker = "extra == 'celery'", specifier = ">=5.3,<6" },
-    { name = "channels", marker = "extra == 'daphne'", specifier = "<4.0" },
-    { name = "daphne", marker = "extra == 'daphne'", specifier = ">=3,<4" },
-    { name = "django", specifier = "==4.0.6" },
-    { name = "django-celery-beat", marker = "extra == 'celery'", specifier = ">=2.6" },
+    { name = "channels", marker = "extra == 'daphne'", specifier = ">=4" },
+    { name = "daphne", marker = "extra == 'daphne'", specifier = ">=4" },
+    { name = "django", specifier = ">=6.0,<6.1" },
+    { name = "django-celery-beat", marker = "extra == 'celery'", specifier = ">=2.9" },
     { name = "gunicorn", marker = "extra == 'gunicorn'", specifier = ">=21,<24" },
     { name = "legacy-cgi", specifier = ">=2.6" },
     { name = "pytz", specifier = "==2021.1" },
-    { name = "sqlparse", specifier = "==0.4.2" },
+    { name = "sqlparse", specifier = ">=0.5.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'uvicorn'", specifier = ">=0.25,<1.0" },
     { name = "uwsgi", marker = "extra == 'uwsgi'", specifier = ">=2.0,<3" },
 ]
@@ -691,11 +690,11 @@ wheels = [
 
 [[package]]
 name = "sqlparse"
-version = "0.4.2"
+version = "0.5.5"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/32/fe/8a8575debfd924c8160295686a7ea661107fc34d831429cce212b6442edb/sqlparse-0.4.2.tar.gz", hash = "sha256:0c00730c74263a94e5a9919ade150dfc3b19c574389985446148402998287dae", size = 67771, upload-time = "2021-09-10T06:51:58.92Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/76/437d71068094df0726366574cf3432a4ed754217b436eb7429415cf2d480/sqlparse-0.5.5.tar.gz", hash = "sha256:e20d4a9b0b8585fdf63b10d30066c7c94c5d7a7ec47c889a2d83a3caa93ff28e", size = 120815, upload-time = "2025-12-19T07:17:45.073Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/05/40/d836d55fb3f467243ee839ab7b814822fda522cd395fa41e282684e71ee5/sqlparse-0.4.2-py3-none-any.whl", hash = "sha256:48719e356bb8b42991bdbb1e8b83223757b93789c00910a616a071910ca4a64d", size = 42309, upload-time = "2021-09-10T06:51:56.892Z" },
+    { url = "https://files.pythonhosted.org/packages/49/4b/359f28a903c13438ef59ebeee215fb25da53066db67b305c125f1c6d2a25/sqlparse-0.5.5-py3-none-any.whl", hash = "sha256:12a08b3bf3eec877c519589833aed092e2444e68240a3577e8e26148acc7b1ba", size = 46138, upload-time = "2025-12-19T07:17:46.573Z" },
 ]
 
 [[package]]

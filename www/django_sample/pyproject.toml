@@ -4,11 +4,12 @@ version = "0.1.0"
 description = "Django sample project for devspoon-web (uv-managed)"
 requires-python = ">=3.14"
 dependencies = [
-    "asgiref==3.4.1",
-    "django==4.0.6",
+    # Django 6.0 — Python 3.12/3.13/3.14 지원. asgiref>=3.9.1 / sqlparse>=0.5.0 이 필수.
+    "asgiref>=3.9.1",
+    "django>=6.0,<6.1",
     "pytz==2021.1",
-    "sqlparse==0.4.2",
-    # Python 3.13+ 에서 제거된 stdlib 'cgi' 모듈의 PyPI shim — Django 4.0.x 의 'import cgi' 호환용.
+    "sqlparse>=0.5.0",
+    # legacy-cgi: Django 6.0 은 stdlib 'cgi' 미의존 → 필수 아님(무해하여 유지).
     "legacy-cgi>=2.6",
 ]
 
@@ -27,18 +28,15 @@ dependencies = [
 [project.optional-dependencies]
 gunicorn = ["gunicorn>=21,<24"]
 uvicorn = ["uvicorn[standard]>=0.25,<1.0"]
-# daphne 4.x / channels 4.x 는 asgiref>=3.5.2 / django>=4.2 를 요구하지만 본
-# 프로젝트는 asgiref==3.4.1 / django==4.0.6 에 고정되어 있어 호환되지 않는다.
-# extras 해석이 통과하도록 daphne 3.x / channels 3.x 로 핀 — 이 라인은
-# Django 4.0 시대 호환 트랙. 운영 daphne 스택에서 4.x 필요 시 django/asgiref
-# 동시 bump 후 본 핀을 풀 것.
-daphne = ["daphne>=3,<4", "channels<4.0"]
+# Django 6.0 + asgiref>=3.9.1 이므로 daphne 4.x / channels 4.x 사용 가능
+# (channels 4.x 는 django>=4.2 요구 → dj6 충족).
+daphne = ["daphne>=4", "channels>=4"]
 uwsgi = ["uwsgi>=2.0,<3"]
 celery = [
     "celery[redis]>=5.3,<6",
     # django_celery_beat 는 settings.py 의 INSTALLED_APPS / CELERY_BEAT_SCHEDULER 가 참조.
-    # 미설치 시 django.setup() 단계에서 ModuleNotFoundError 로 컨테이너 부팅 실패.
-    "django-celery-beat>=2.6",
+    # v2.9.0 부터 Django 6.0 지원(Django<6.1). 미설치 시 django.setup() 에서 ModuleNotFoundError.
+    "django-celery-beat>=2.9",
 ]
 
 [tool.uv]
