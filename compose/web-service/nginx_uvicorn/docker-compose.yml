@@ -70,6 +70,8 @@ services:
     command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} && uv sync --inexact --extra uvicorn --extra celery && exec gunicorn -c /uvicorn/uvicorn.conf.py"
     environment:
       TZ: "Asia/Seoul"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
     restart: always
     depends_on:
       redis:
@@ -102,6 +104,8 @@ services:
       --logfile=/log/uvicorn/celery/worker-%n%I.log"
     environment:
       TZ: "Asia/Seoul"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/3
     restart: always
     depends_on:
@@ -128,6 +132,8 @@ services:
       --logfile=/log/uvicorn/celerybeat/celerybeat.log"
     environment:
       TZ: "Asia/Seoul"
+      DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
+      DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}@redis:6379/3
     restart: always
     depends_on:
