@@ -33,6 +33,10 @@ for stack_dir in "$DEVSPOON"/compose/web-service/*/; do
   # compose 가 :? 로 요구하는 키는 하나만 비어도 거부돼야 한다 — 다른 키가 먼저 거부해 가려지는 회귀 방지
   req=$(grep -hvE '^[[:space:]]*#' docker-compose*.yml | grep -oE '\$\{[A-Z0-9_]+:\?' | sed 's/^\${//; s/:?$//' | sort -u)
   bad=""
+  # .env-example 에서 빈 값인 키(비밀, s6 6.29)는 모두 :? 이어야 한다 — compose 에서 :? 가 빠진 회귀는 위 수집에서 사라지므로 따로 대조
+  for k in $(grep -oE '^[A-Z0-9_]+=$' .env-example | tr -d =); do
+    grep -qx "$k" <<<"$req" || bad="$bad $k(:? 없음)"
+  done
   for k in $req; do
     { grep -v "^$k=" "$ENVF"; echo "$k="; } > "$TMPD/$stack.one.env"
     if out=$(docker compose --env-file "$TMPD/$stack.one.env" --profile celery --profile redis config -q 2>&1); then bad="$bad $k(rc0)"
