@@ -31,9 +31,13 @@ for key, value in secrets.items():
     setattr(sys.modules[__name__], key, value)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# 운영 안전 기본값 — 로컬 개발에서만 .env 에 DJANGO_DEBUG=1
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+
+# nginx proxy_params 가 X-Forwarded-Proto 를 전달한다 (HTTPS 종단 뒤 request.is_secure())
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Application definition
 
