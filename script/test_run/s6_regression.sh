@@ -396,7 +396,7 @@ echo
 
 echo "===== 6.31 run-ci 스택 뒤 호스트 소스 트리 소유권 런타임 단언, compose :? 필수 키 개별 빈 값 거부 (P6, P2) ====="
 assert_eq "6.31 run-ci find www ! -user" "$(grep -cF 'find "$ROOT/www" ! -user "$(id -u)"' script/ci/run-ci.sh)" 1
-assert_eq "6.31 verify_compose_yml :? 필수 키 개별 빈 값 거부" "$(grep -c ':? 필수 키 개별 빈 값 거부' script/test_run/verify_compose_yml.sh)" 1
+assert_eq "6.31 verify_compose_yml :? 필수 키 개별 빈 값 거부" "$(grep -c '\[PASS\] :? 필수 키 개별 빈 값 거부' script/test_run/verify_compose_yml.sh)" 1
 echo
 
 echo "===== 6 FAILS=$FAILS ====="

@@ -31,7 +31,7 @@ for stack_dir in "$DEVSPOON"/compose/web-service/*/; do
   fi
 
   # compose 가 :? 로 요구하는 키는 하나만 비어도 거부돼야 한다 — 다른 키가 먼저 거부해 가려지는 회귀 방지
-  req=$(grep -ohE '\$\{[A-Z0-9_]+:\?' docker-compose*.yml | sed 's/^\${//; s/:?$//' | sort -u)
+  req=$(grep -hvE '^[[:space:]]*#' docker-compose*.yml | grep -oE '\$\{[A-Z0-9_]+:\?' | sed 's/^\${//; s/:?$//' | sort -u)
   bad=""
   for k in $req; do
     { grep -v "^$k=" "$ENVF"; echo "$k="; } > "$TMPD/$stack.one.env"
