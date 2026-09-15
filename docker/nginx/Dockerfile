@@ -72,10 +72,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     /usr/local/sbin/install-ngxblocker -x -c /etc/nginx && \
     # install-ngxblocker 가 만들지 않는 사용자 커스텀 파일은 빈 파일로 생성 (sample_nginx*.conf include 깨짐 방지)
     touch /etc/nginx/bots.d/blacklist-domains.conf && \
-    # botblocker-nginx-settings.conf 는 nginx.conf 의 http{} 가 명시적으로 include 한다.
-    # (본 파일은 자체 limit_req_zone / limit_conn_zone 를 정의하나, 우리 nginx.conf 의
-    #  limit_*_zone 지시어는 기본 주석 처리 상태라 충돌하지 않는다. 운영자가 nginx.conf
-    #  의 limit_zone 주석을 해제하려면 zone 이름이 겹치지 않도록 확인 필요.)
+    # botblocker-nginx-settings.conf 는 설치되지만 nginx.conf 가 include 하지 않는다 (D-1 B).
+    # (이 파일의 addr/flood zone 키가 $binary_remote_addr 라 정상 사용자까지 제한하므로, nginx.conf 가
+    #  같은 이름의 zone 을 $bot_iplimit 키로 정의하고 해시 크기 지시어만 옮겨 두었다.)
     apt-get autoremove -y && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
