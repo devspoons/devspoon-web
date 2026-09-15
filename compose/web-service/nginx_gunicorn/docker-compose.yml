@@ -131,8 +131,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/gunicorn/celery/gunicorn-celery:/etc/logrotate.d/gunicorn-celery
-    command: bash -c "uv sync --inexact --extra gunicorn --extra celery && \
+    command: bash -c "mkdir -p /log/gunicorn/celery && chown -R www-data:www-data /www/${PROJECT_DIR} /log/gunicorn/celery && \
+      uv sync --inexact --extra gunicorn --extra celery && \
       exec celery -A config worker \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --concurrency=8 \
       --max-tasks-per-child=2000 \
@@ -162,8 +164,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/gunicorn/celerybeat/gunicorn-celerybeat:/etc/logrotate.d/gunicorn-celerybeat
-    command: bash -c "uv sync --inexact --extra gunicorn --extra celery && \
+    command: bash -c "mkdir -p /log/gunicorn/celerybeat && chown -R www-data:www-data /www/${PROJECT_DIR} /log/gunicorn/celerybeat && \
+      uv sync --inexact --extra gunicorn --extra celery && \
       exec celery -A config beat \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --scheduler django_celery_beat.schedulers:DatabaseScheduler \
       --logfile=/log/gunicorn/celerybeat/celerybeat.log"

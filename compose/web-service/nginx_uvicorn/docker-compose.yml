@@ -96,8 +96,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/uvicorn/celery/uvicorn-celery:/etc/logrotate.d/uvicorn-celery
-    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && \
+    command: bash -c "mkdir -p /log/uvicorn/celery && chown -R www-data:www-data /www/${PROJECT_DIR} /log/uvicorn/celery && \
+      uv sync --inexact --extra uvicorn --extra celery && \
       exec celery -A config worker \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --concurrency=8 \
       --max-tasks-per-child=2000 \
@@ -125,8 +127,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/uvicorn/celerybeat/uvicorn-celerybeat:/etc/logrotate.d/uvicorn-celerybeat
-    command: bash -c "uv sync --inexact --extra uvicorn --extra celery && \
+    command: bash -c "mkdir -p /log/uvicorn/celerybeat && chown -R www-data:www-data /www/${PROJECT_DIR} /log/uvicorn/celerybeat && \
+      uv sync --inexact --extra uvicorn --extra celery && \
       exec celery -A config beat \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --scheduler django_celery_beat.schedulers:DatabaseScheduler \
       --logfile=/log/uvicorn/celerybeat/celerybeat.log"

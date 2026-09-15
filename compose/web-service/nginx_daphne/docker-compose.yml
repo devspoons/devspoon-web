@@ -105,8 +105,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/daphne/celery/daphne-celery:/etc/logrotate.d/daphne-celery
-    command: bash -c "uv sync --inexact --extra daphne --extra celery && \
+    command: bash -c "mkdir -p /log/daphne/celery && chown -R www-data:www-data /www/${PROJECT_DIR} /log/daphne/celery && \
+      uv sync --inexact --extra daphne --extra celery && \
       exec celery -A config worker \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --concurrency=8 \
       --max-tasks-per-child=2000 \
@@ -134,8 +136,10 @@ services:
       - ../../../www:/www
       - ../../../log:/log
       - ../../../script/logrotate/daphne/celerybeat/daphne-celerybeat:/etc/logrotate.d/daphne-celerybeat
-    command: bash -c "uv sync --inexact --extra daphne --extra celery && \
+    command: bash -c "mkdir -p /log/daphne/celerybeat && chown -R www-data:www-data /www/${PROJECT_DIR} /log/daphne/celerybeat && \
+      uv sync --inexact --extra daphne --extra celery && \
       exec celery -A config beat \
+      --uid www-data --gid www-data \
       --loglevel=INFO \
       --scheduler django_celery_beat.schedulers:DatabaseScheduler \
       --logfile=/log/daphne/celerybeat/celerybeat.log"
