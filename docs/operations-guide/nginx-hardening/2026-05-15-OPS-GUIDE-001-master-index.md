@@ -30,9 +30,9 @@
 ## 1. 표기 규칙
 
 - **`<svc>`** — 백엔드 종류 marker: `gunicorn` | `uvicorn` | `uwsgi` | `php` (nginx 설정 폴더 기준. daphne 스택은 gunicorn 설정을 재사용).
-- **컨테이너 이름 패턴** — `nginx-<svc>-webserver`.
+- **컨테이너 이름 패턴** — compose 폴더 기준 `nginx-<gunicorn|uvicorn|uwsgi|daphne|php-7.3|php-8.4>-webserver`.
 - **Compose 경로 패턴** — `compose/web-service/nginx_<svc>/` (php 는 `nginx_php-7.3` / `nginx_php-8.4`).
-- **Sample 경로** — `config/web-server/nginx/<svc>/sample_nginx{,_https,_proxy,_proxy_https}.conf`.
+- **Sample 경로** — `config/web-server/nginx/<svc>/sample_nginx_{http,https}.conf` (`<svc>` = gunicorn·uvicorn·uwsgi·php).
 - **심각도 (Severity)** — Critical / High / Medium / Low. Critical 은 단일 컨트롤 실패가 곧 사용자에게 보이는 장애 또는 기밀 유출로 직결되는 등급. High 는 점진적 비용 증가 또는 반복적 부분 장애. Medium / Low 는 quality-of-life 또는 defense-in-depth.
 - **공수 (Effort)** — XS (<1시간) / S (<1일) / M (<1주) / L (<1개월) / XL (다분기).
 - **되돌림 가능성 (Reversibility)** — Reversible (config 변경, reload 한 번) / Hard-to-reverse (이미지 재빌드 + 다운타임) / Irreversible (HSTS preload 등록, 공개 CT 로그 게재).

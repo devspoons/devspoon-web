@@ -35,7 +35,7 @@ Af you want to use python and php service at same time, this solution can help y
 
 - **Ready-to-run sample apps** : Django (`django_sample`), FastAPI (`fastapi_sample`), Flask (`flask_sample`), and PHP (`php_sample`) live under `www/` so each of the six stacks (gunicorn / uvicorn / uwsgi / daphne / php-7.3 / php-8.4) can be brought up immediately after `git clone`. Samples are domain-agnostic — bind to `localhost` first, swap to your domain when ready.
 
-- **Worker privilege drop (`www-data`)** : gunicorn / uvicorn / uwsgi / php-fpm workers all run as `www-data` (uid 33) — the container boots as root (for `uv sync` etc.) but workers are dropped to least privilege. The host source tree bind-mounted at `/www` is never chowned: the only writable paths are the named volume `/data` (SQLite, `SQLITE_PATH`) and the log directories, which the compose `command` chowns to `www-data` before startup (§0.6.2). uwsgi master uses `uid/gid = www-data`; gunicorn arbiter stays root and forks workers via setuid; celery / celery-beat run with `--uid/--gid www-data`. Exception: the daphne process has no privilege-drop option and runs as root inside its container.
+- **Worker privilege drop (`www-data`)** : gunicorn / uvicorn / uwsgi / php-fpm workers all run as `www-data` (uid 33) — the container boots as root (for `uv sync` etc.) but workers are dropped to least privilege. The host source tree bind-mounted at `/www` is never chowned: the only writable paths are the named volume `/data` (SQLite, `SQLITE_PATH`), which the app `command` chowns to `www-data`, and the celery log directories, which the celery / celery-beat `command`s chown to `www-data` before startup (§0.6.2). uwsgi master uses `uid/gid = www-data`; gunicorn arbiter stays root and forks workers via setuid; celery / celery-beat run with `--uid/--gid www-data`. Exception: the daphne process has no privilege-drop option and runs as root inside its container.
 
 - **Secret separation (`.env-example`)** : Every stack ships a tracked `.env-example` (`compose/web-service/nginx_*/.env-example`), while the actual `.env` is gitignored. Copy it to `.env`, then generate the empty secrets (`DJANGO_SECRET_KEY` / `REDIS_PASSWORD` / `FLOWER_PWD`) with `script/lib/django_secrets.sh` (`ensure_env_secrets`, §0.6.1); never commit the live file. `${VAR:?}` checks in the compose files fail-fast if a required secret is missing.
 
@@ -471,7 +471,7 @@ curl -H "Host: localhost" http://localhost/    # → 200
 | PHP 8.4 (current) | `php:8.4-fpm-bookworm` (공식) | `docker/php-fpm/Dockerfile-8.4`. 단일 경로(`/usr/local/etc/php{,-fpm.d}/...`). php.ini 는 8.x 호환으로 패치됨 (`config/app-server/php-8.4/php_ini/php.ini`) |
 | Redis | `redis:7.4-alpine` + `protected-mode yes` + `requirepass` | Alpine 베이스로 이미지 100 MB 이하. 인증 강제 (§0.5.2) |
 | Flower | `mher/flower:2.0.1` | `master` 태그는 재현성 없으므로 금지. `FLOWER_BASIC_AUTH` 필수 |
-| 이미지 태그 (이 프로젝트가 빌드) | `devspoon-py-app:latest`, `devspoon-uwsgi-app:latest`, `devspoon-nginx:latest`, `devspoon-php-app:{7.3,8.4}` | compose `image:` 명시로 스택 / 서비스 간 재사용 (§0.5.4). 접두어 `devspoon` 은 `IMAGE_NAMESPACE`(기본 `devspoon`) — 테스트 하네스는 `devspoon-it` (§0.6.4) |
+| 이미지 태그 (이 프로젝트가 빌드) | `devspoon-py-app:latest`, `devspoon-uwsgi-app:latest`, `devspoon-nginx:latest`, `devspoon-php-app:{7.3,8.4}` | compose `image:` 명시로 스택 / 서비스 간 재사용 (§0.5.4). 접두어 `devspoon` 은 `IMAGE_NAMESPACE`(기본 `devspoon`) — 검증기·`verify-ngxblocker.sh` 는 `IMAGE_NAMESPACE=devspoon-it`, run-ci 빌드 단계(`s2_build.sh`)는 `devspoon-test/*` 태그로 빌드해 운영 태그를 덮어쓰지 않음 (§0.6.4) |
 
 #### 왜 "수동 stop/start" 가 기본 정책인가?
 - 본 프로젝트는 단일 서버(8c/8g) 운용을 1차 타깃으로 하며, 로드밸런서/오케스트레이터(K8s)가 없는 환경에서 가장 단순·안전한 배포 모델.
@@ -584,7 +584,7 @@ docker compose exec gunicorn-app chown www-data:www-data /data/django_sample.sql
 docker compose restart      # 기동 명령이 다시 돌며 이관한 DB 에 미적용 migrate 반영
 ```
 
-> ⚠️ **`docker compose down -v` 는 `app-data` 볼륨, 즉 SQLite DB 를 삭제합니다.** 컨테이너만 내리려면 `docker compose stop` (또는 `-v` 없는 `down`)을 쓰세요. 백업: `docker compose cp gunicorn-app:/data/django_sample.sqlite3 ./backup.sqlite3`.
+> ⚠️ **`docker compose down -v` 는 `app-data` 볼륨, 즉 SQLite DB 를 삭제합니다.** 컨테이너만 내리려면 `docker compose stop` 을 쓰세요 (`down` 은 §6 배포 절차 정책상 비권장, 특히 `-v`). 백업: `docker compose cp gunicorn-app:/data/django_sample.sqlite3 ./backup.sqlite3`.
 
 #### 0.6.3 기동 순서 — app 이 DB 를 초기화한 뒤 celery · beat
 
@@ -593,7 +593,7 @@ docker compose restart      # 기동 명령이 다시 돌며 이관한 DB 에 �
 
 #### 0.6.4 이미지 이름 · 빌드
 
-- 이미지 이름은 `${IMAGE_NAMESPACE:-devspoon}-nginx:latest` 형식입니다. 기본값이면 기존과 같은 `devspoon-*` 태그이고, 테스트 하네스(run-ci · 검증기 · `verify-ngxblocker.sh`)는 `IMAGE_NAMESPACE=devspoon-it` 로 빌드해 운영 태그를 덮어쓰지 않습니다.
+- 이미지 이름은 `${IMAGE_NAMESPACE:-devspoon}-nginx:latest` 형식입니다. 기본값이면 기존과 같은 `devspoon-*` 태그이고, 검증기·`verify-ngxblocker.sh` 는 `IMAGE_NAMESPACE=devspoon-it`, run-ci 빌드 단계(`s2_build.sh`)는 `devspoon-test/*` 태그로 빌드해 운영 태그를 덮어쓰지 않습니다.
 - 앱 이미지(`py-app` · `uwsgi-app`)의 사전 설치 패키지는 `www/django_sample/uv.lock` 에서 도출됩니다. compose 는 `build.additional_contexts: lock: ../../../www/django_sample` 로 이를 자동 전달하므로 **Docker Compose ≥ 2.17** 이 필요합니다 (`docker compose version`).
 - Compose 가 2.17 미만이거나 `docker build` 를 직접 쓸 때는 추가 빌드 컨텍스트를 명시합니다(저장소 루트, BuildKit):
 
@@ -621,7 +621,7 @@ docker compose restart      # 기동 명령이 다시 돌며 이관한 DB 에 �
 
 | 변수 | 기본 | 용도 |
 |---|---|---|
-| `IMAGE_NAMESPACE` | `devspoon` (하네스 `devspoon-it`) | 이미지 이름 접두어 |
+| `IMAGE_NAMESPACE` | `devspoon` (검증기·`verify-ngxblocker.sh` 는 `devspoon-it`, run-ci `s2_build.sh` 는 `devspoon-test/*`) | 이미지 이름 접두어 |
 | `S5_DOMAIN` | `s5-https.test` | `s5_https.sh` 의 테스트 HTTPS 도메인 |
 | `S5_WAIT` | `20` | `s5_https.sh` 가 reload 뒤 HTTPS 응답을 기다리는 최대 초 |
 | `STABLE_WINDOW` | `15` | 검증기가 컨테이너 running · RestartCount 불변을 관측하는 안정화 창(초) |
@@ -1018,7 +1018,7 @@ docker exec -it gunicorn-app python -c "import django; print(django.__file__)"
 | 파일 | 종류 | 소요 | 컨테이너 변경? |
 |---|---|---|---|
 | `preflight.sh` | 환경 사전 점검 (read-only) | ~30 초 | 없음 |
-| `verify-ngxblocker.sh` | ngxblocker 종단간 자동 검증 | 1–3 분 | gunicorn 스택을 down → up + 임시 conf 추가/제거 (스크립트가 자체 cleanup) |
+| `verify-ngxblocker.sh` | ngxblocker 종단간 자동 검증 | 1–3 분 | 전용 compose 프로젝트(`-p devspoon-ngxb-test`)로 gunicorn 스택 webserver·redis 기동 → 종료 시 그 프로젝트만 `down -v` (운영 스택은 먼저 stop) + 임시 conf 추가/제거 (스크립트가 자체 cleanup) |
 
 ---
 
