@@ -63,8 +63,10 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
 
-with app.app_context():
-    db.create_all()
+def init_db() -> None:
+    """테이블 생성 — 서버 기동 전 1회(prestart.sh). 워커 import 마다 실행하면 새 DB 에서 CREATE TABLE 이 경합한다."""
+    with app.app_context():
+        db.create_all()
 
 
 # ── 인증 유틸 ─────────────────────────────────────────────────────────────────
@@ -239,4 +241,5 @@ def root():
 
 
 if __name__ == "__main__":
+    init_db()
     app.run(host="0.0.0.0", port=5000, debug=True)

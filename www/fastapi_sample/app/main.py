@@ -7,14 +7,13 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from scalar_fastapi import get_scalar_api_reference
 
-from app.database import init_db
 from app.routers import users
 from app.schemas import MessageOut
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
+    # 테이블 생성은 서버 기동 전 1회(prestart.sh) — 워커마다 lifespan 에서 하면 새 DB 에서 CREATE TABLE 이 경합한다
     yield
 
 

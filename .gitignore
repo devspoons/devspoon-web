@@ -52,6 +52,8 @@ compose/web_service/nginx_uwsgi/redis/
 www/*/db.sqlite3
 www/*/secrets.json
 *.sqlite3
+# flask/fastapi 샘플 로컬 실행(SQLITE_PATH 미설정) SQLite
+www/*/*.db
 
 # uv.lock 은 커밋 권장 (재현 가능 빌드). 환경별로 다른 락이 필요하다면 추가 정책 검토.
 # !**/uv.lock

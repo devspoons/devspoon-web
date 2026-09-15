@@ -11,6 +11,7 @@ devspoon-web 더미 테스트용 FastAPI 프로젝트.
 
 ```bash
 uv sync
+uv run bash prestart.sh   # DB 테이블 생성 (서버 기동 전 1회 — compose 도 같은 스크립트를 호출)
 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
