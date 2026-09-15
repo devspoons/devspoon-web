@@ -11,6 +11,8 @@ SPORT="$5"            # 9000 / 8000
 NGINX_DIR="$ROOT/config/web-server/nginx/$STACK"
 
 cd "$NGINX_DIR" || { echo "FAIL cd to $NGINX_DIR"; exit 1; }
+# 생성한 https conf 는 종료 시 정리 — 추적 트리에 잔여 파일을 남기지 않는다
+trap 'rm -f "$NGINX_DIR/conf.d/localhost_${STACK}_ng_https.conf"' EXIT
 
 # 5-A: generate localhost https conf
 # nginx_https_conf.sh 의 SUFFIX 는 "_${STACK}_ng_https" — 결과 파일명: <NAME>_<STACK>_ng_https.conf
