@@ -19,11 +19,6 @@ jobs:
       - name: 소스 체크아웃
         uses: actions/checkout@v7
 
-      - name: Python 설정
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
       - name: uv 설치
         # setup-uv 는 v8+ 부터 공급망 보안 정책상 짧은 메이저 태그(@v9)를 발행하지
         # 않는다. 반드시 정확한 버전 태그(@v9.0.0)로 핀할 것.

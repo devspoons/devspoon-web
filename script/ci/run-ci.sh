@@ -118,26 +118,23 @@ step_samples() {
     local rc=0
     command -v uv >/dev/null 2>&1 || { echo "uv 미설치 — 설치 시도"; pip install -q uv || rc=1; }
 
-    echo "### [django_sample] secrets.json 준비(테스트 전용) ###"
-    # settings.py:26 이 secrets.json 을 강제로 읽는다. 50f7505 이후 추적 해제(.gitignore)
-    # 되어 CI 체크아웃에는 존재하지 않으므로 .example 로부터 생성한다.
-    # (verify_integration_gunicorn.sh Phase 3b 와 동일 정책 — 단일 출처 = .example)
+    echo "### [django_sample] secrets.json 준비 ###"
+    # settings.py:26 이 secrets.json 을 강제로 읽는다(추적 해제 파일) — 없을 때만 무작위 키로 생성.
     ensure_django_secrets "$ROOT" || rc=1
 
-    echo "### [django_sample] manage.py check ###"
+    echo "### [django_sample] manage.py check (py3.14 + uv — 런타임과 동일) ###"
     ( cd "$ROOT/www/django_sample" \
-        && pip install -q -r requirements.txt \
-        && python manage.py check ) || { echo "django_sample 실패"; rc=1; }
+        && uv run --python 3.14 --frozen --extra celery python manage.py check ) || { echo "django_sample 실패"; rc=1; }
 
-    echo "### [flask_sample] uv sync + import ###"
+    echo "### [flask_sample] uv sync + import (py3.14) ###"
     ( cd "$ROOT/www/flask_sample" \
-        && uv sync --quiet \
-        && uv run python -c "import app.main; print('flask app import OK')" ) || { echo "flask_sample 실패"; rc=1; }
+        && uv sync --python 3.14 --frozen --quiet \
+        && uv run --python 3.14 python -c "import app.main; print('flask app import OK')" ) || { echo "flask_sample 실패"; rc=1; }
 
-    echo "### [fastapi_sample] uv sync + import ###"
+    echo "### [fastapi_sample] uv sync + import (py3.14) ###"
     ( cd "$ROOT/www/fastapi_sample" \
-        && uv sync --quiet \
-        && uv run python -c "import app.main; print('fastapi app import OK')" ) || { echo "fastapi_sample 실패"; rc=1; }
+        && uv sync --python 3.14 --frozen --quiet \
+        && uv run --python 3.14 python -c "import app.main; print('fastapi app import OK')" ) || { echo "fastapi_sample 실패"; rc=1; }
 
     echo "### [php_sample] php -l ###"
     if command -v php >/dev/null 2>&1; then
