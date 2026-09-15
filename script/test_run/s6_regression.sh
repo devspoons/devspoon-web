@@ -30,9 +30,9 @@ assert_zero 6.3 "$n"
 echo
 
 echo "===== 6.4 LF line endings (no CRLF) ====="
-n=$(find . -type f -not -path './.git/*' -not -path './.claude/*' -not -path './log/*' -not -path './www/django_sample/.venv/*' 2>/dev/null | xargs file 2>/dev/null | grep -i CRLF | wc -l)
+n=$(find . -type f -not -path './.git/*' -not -path './.claude/*' -not -path './log/*' -not -path './www/*/.venv/*' 2>/dev/null | xargs file 2>/dev/null | grep -i CRLF | wc -l)
 echo "  (first 10 if any):"
-find . -type f -not -path './.git/*' -not -path './.claude/*' -not -path './log/*' -not -path './www/django_sample/.venv/*' 2>/dev/null | xargs file 2>/dev/null | grep -i CRLF | head -10
+find . -type f -not -path './.git/*' -not -path './.claude/*' -not -path './log/*' -not -path './www/*/.venv/*' 2>/dev/null | xargs file 2>/dev/null | grep -i CRLF | head -10
 assert_zero 6.4 "$n"
 echo
 
@@ -212,6 +212,21 @@ for s in gunicorn uvicorn uwsgi daphne; do
     assert_eq "6.21 compose ($s)"      "$(grep -c 'DJANGO_ALLOWED_HOSTS:-localhost,www.localhost,127.0.0.1}' compose/web-service/nginx_$s/docker-compose.yml)" 3
     assert_eq "6.21 .env-example ($s)" "$(grep -c '^DJANGO_ALLOWED_HOSTS=localhost,www.localhost,127.0.0.1$' compose/web-service/nginx_$s/.env-example)" 1
 done
+echo
+
+echo "===== 6.22 Django migrate 는 app 서비스에서만 기동 전 1회, celery·beat 는 app healthy 뒤 기동 (CL-WP1-08-R2b) ====="
+for s in gunicorn uvicorn uwsgi daphne; do
+    f=compose/web-service/nginx_$s/docker-compose.yml
+    assert_eq "6.22 migrate 1회(app 만) ($s)" "$(grep -c 'manage.py migrate --noinput' "$f")" 1
+    assert_eq "6.22 uv sync → migrate → /data chown → 서버 순서 ($s)" "$(grep -cF '{ [ ! -f manage.py ] || python manage.py migrate --noinput; } && chown -R www-data:www-data /data && ' "$f")" 1
+    assert_eq "6.22 ${s}-app service_healthy 의존 3곳(webserver·celery·beat) ($s)" "$(grep -A1 -E "^      ${s}-app:\$" "$f" | grep -c 'condition: service_healthy')" 3
+done
+echo
+
+echo "===== 6.23 s5_https 는 출고 http 샘플과 겹치지 않는 도메인 + reload 후 준비 대기 (CL-WP4-08-R2) ====="
+assert_zero "6.23 s5 -d localhost (출고 http 샘플 server_name 충돌)" "$(grep -c -- '-d localhost' script/test_run/s5_https.sh)"
+n=$(grep -c 'S5_WAIT' script/test_run/s5_https.sh)
+if [ "$n" -ge 2 ]; then echo "  PASS 6.23 s5 준비 대기 ($n)"; else echo "  FAIL 6.23 s5 준비 대기 없음"; FAILS=$((FAILS+1)); fi
 echo
 
 echo "===== 6 FAILS=$FAILS ====="
