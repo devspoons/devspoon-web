@@ -35,7 +35,7 @@ ensure_django_secrets() {
 #   - 키 줄이 아예 없으면 compose 가 ${KEY:?} 로 요구하는 비밀 키만 끝에 추가 (이전 .env 업그레이드, php 스택은 REDIS_PASSWORD 만)
 #   - 값을 모두 만든 뒤 한 번에 쓴다: openssl 실패 시 FAIL·rc 1·파일 무변경. 생성이 있으면 group/other 권한 제거(600, 더 엄격하면 유지)
 # compose 는 이 값들을 :? 필수로 검사한다 — 운영자 최초 설정 한 줄(저장소 루트):
-#   bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_gunicorn/.env'
+#   bash -c '. script/lib/django_secrets.sh && ensure_env_secrets <compose 스택 폴더>/.env'
 ensure_env_secrets() {
     local envf="${1:?사용: ensure_env_secrets <.env 경로>}" req k len val tmp traps rc set="" app="" names="" n=0
     [ -f "$envf" ] || { echo "  FAIL : $envf 없음 — 먼저 .env-example 을 .env 로 복사"; return 1; }
