@@ -139,7 +139,10 @@ docker compose --profile redis --profile celery down -v 2>&1 | tail -5
 
 echo
 echo "--- compose up -d --build ---"
-docker compose up -d --build 2>&1 | tail -20
+if ! docker compose up -d --build; then
+    echo "  compose up 실패 — 1회 재시도"; sleep 5
+    docker compose up -d --build || { fail "B.0 compose up" "exit≠0 (재시도 포함)"; exit 1; }
+fi
 
 # Wait up to 120s for app healthcheck to flip to healthy
 echo
@@ -167,15 +170,12 @@ echo
 echo "--- compose ps (final) ---"
 docker compose ps
 
-# webserver healthy 도 검증 (depends_on service_healthy 가 작동했으면 webserver 도 Up 이어야)
-ws_status=$(docker compose ps --format '{{.Service}} {{.Status}}' 2>/dev/null | grep "^webserver " | head -1)
+# webserver 는 healthcheck 가 없으므로 running + RestartCount 0 으로 판정 ("Up" 문자열은 재시작 루프도 통과시킨다)
+ws_cid=$(docker compose ps -q webserver)
+ws_state=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$ws_cid" 2>/dev/null)
 echo
-echo "--- webserver status: $ws_status ---"
-if echo "$ws_status" | grep -qE "Up "; then
-    pass "B.2 webserver Up (after app healthy gate)"
-else
-    fail "B.2 webserver Up" "$ws_status"
-fi
+echo "--- webserver state: $ws_state ---"
+if [ "$ws_state" = "running 0" ]; then pass "B.2 webserver running, RestartCount=0"; else fail "B.2 webserver" "$ws_state"; fi
 
 # redis healthy 검증
 redis_status=$(docker compose ps --format '{{.Service}} {{.Status}}' 2>/dev/null | grep "^redis " | head -1)
