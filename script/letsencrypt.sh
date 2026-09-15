@@ -99,7 +99,7 @@ LIVE_DIR="/etc/letsencrypt/live/$primary"
 if [[ -d "$LIVE_DIR" ]]; then
     echo
     echo "[SKIP] 이미 발급된 인증서가 존재합니다: $LIVE_DIR"
-    echo "       - 갱신은 docker/nginx/Dockerfile 에 등록된 cron (매주 월 05:00 UTC) 이 자동 수행합니다."
+    echo "       - 갱신은 docker/nginx/Dockerfile 에 등록된 cron (매주 월 05:00, 컨테이너 TZ=Asia/Seoul) 이 자동 수행합니다."
     echo "       - 강제 재발급이 필요하면 'certbot certonly --force-renewal --webroot ...' 를 직접 실행하세요."
     exit 0
 fi
