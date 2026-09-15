@@ -195,7 +195,7 @@ else
     echo "  FAIL 6.18 script/lib/stability.sh 없음"; FAILS=$((FAILS+1))
 fi
 for f in script/test_run/verify_integration_*.sh; do
-    assert_eq   "6.18 containers_stable 사용 ($f)" "$(grep -c 'containers_stable ' "$f")" 1
+    assert_eq   "6.18 app·webserver containers_stable 사용 ($f)" "$(grep -cF 'containers_stable "$(cid $APP)" "$(cid webserver)"' "$f")" 1
     assert_zero "6.18 순간 RestartCount 판정 ($f)" "$(grep -c '{{.RestartCount}}' "$f")"
 done
 assert_eq   "6.18 verify_healthcheck B.2 containers_stable" "$(grep -c 'containers_stable ' script/test_run/verify_healthcheck.sh)" 1
