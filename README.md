@@ -143,7 +143,9 @@ Af you want to use python and php service at same time, this solution can help y
            docker compose --profile redis up -d
 
        Cannot run both stacks at once: both bind host ports 80/443.
-       To switch versions: "docker compose stop" in the running stack first, then "up -d --build" in the other.
+       To switch versions: "docker compose --profile redis stop" in the running stack first
+       (a plain "stop" leaves the profile-gated redis running), then "up -d --build" in the other.
+       Use stop, not down — see §6 (never "down -v").
        ```
 
        > **PHP `.env-example` 의 변수 셋이 Python stack 과 다릅니다.** PHP 스택은 단순화된
@@ -339,8 +341,22 @@ Af you want to use python and php service at same time, this solution can help y
      Image: shares devspoon-py-app:latest (gunicorn / uvicorn 과 동일 베이스, §0.5.4)
      Use case: Django Channels 같은 WebSocket-only 요구사항. nginx 설정은 gunicorn 스택의
      config/web-server/nginx/gunicorn/ 을 그대로 마운트해 재사용한다.
-     .env: nginx_gunicorn 과 같은 절차 (cp .env-example .env → ensure_env_secrets, §0.6.1)
      ```
+
+     - **Run docker-compose.yml**
+
+       ```
+       Before first start, create .env and generate its secrets (repository root, §0.6.1):
+           cp compose/web-service/nginx_daphne/.env-example compose/web-service/nginx_daphne/.env
+           bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_daphne/.env'
+       Then replace FLOWER_ID. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
+
+       Then move to the stack folder and run docker-compose.yml
+       (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           cd compose/web-service/nginx_daphne
+           docker compose up -d --build
+       For celery / celery-beat / flower: "docker compose --profile celery up -d".
+       ```
 
      WebSocket 경로는 도메인 conf 에 별도 location 을 두고 Upgrade 헤더를 전달한다.
      nginx.conf 가 `map $http_upgrade $connection_upgrade` 를 정의한다. `proxy_params` 는
@@ -900,8 +916,8 @@ git pull origin main
 cd compose/web-service/nginx_<service>
 docker compose build --no-cache <service>-app   # 필요한 서비스만
 
-# 3. 중단
-docker compose stop
+# 3. 중단 (프로필 서비스까지 — 프로필 없는 stop 은 celery·redis 프로필 컨테이너를 남김)
+docker compose --profile celery --profile redis stop
 
 # 4. 시작
 docker compose --profile celery --profile redis up -d
@@ -979,7 +995,8 @@ git commit -m "deps: add requests"
 # 컨테이너 재기동 → 시작 시점에 uv sync 가 자동 실행되어 시스템 Python 에 반영
 # (앱 이미지 사전설치도 uv.lock 에서 도출하므로 --build, §0.6.4):
 cd ../../compose/web-service/nginx_<service>
-docker compose stop && docker compose up -d --build
+docker compose --profile celery stop && docker compose up -d --build
+docker compose --profile celery up -d   # celery 사용 시 (프로필 없는 stop 은 celery 를 남김)
 ```
 
 #### 트러블슈팅 예시
