@@ -207,17 +207,29 @@ assert_zero "6.18 verify_healthcheck 순간 running 0 판정" "$(grep -c '"runni
 assert_eq   "6.18 verify_healthcheck 런타임 teardown trap (RV1-S-06)" "$(grep -cE "^trap 'dc .*down -v" script/test_run/verify_healthcheck.sh)" 1
 echo
 
-echo "===== 6.19 앱 이미지 사전설치 버전 = django_sample uv.lock (기동마다 uv sync 재설치 방지) ====="
+echo "===== 6.19 앱 이미지 사전설치 = django_sample uv.lock 해석 결과 (기동마다 uv sync 재설치 방지, CL-WP2-09-R4) ====="
 lockv() { awk -v n="$1" '$0 == "name = \"" n "\"" { getline; gsub(/"/, "", $3); print $3; exit }' "${2:-www/django_sample/uv.lock}"; }
-for spec in "docker/gunicorn/Dockerfile gunicorn" "docker/gunicorn/Dockerfile uvicorn" "docker/uwsgi/Dockerfile gunicorn" "docker/uwsgi/Dockerfile uvicorn" "docker/uwsgi/Dockerfile uwsgi" "docker/uwsgi/Dockerfile django"; do
-    df=${spec% *}; pkg=${spec#* }
-    want=$(lockv "$pkg"); got=$(grep -oE "(^|[[:space:]\"])$pkg(\[standard\])?==[0-9][0-9.]*" "$df" | head -1 | sed 's/.*==//')
-    if [ -n "$want" ] && [ "$want" = "$got" ]; then echo "  PASS 6.19 $df $pkg==$got"; else echo "  FAIL 6.19 $df $pkg image=[$got] lock=[$want]"; FAILS=$((FAILS+1)); fi
+for df in docker/gunicorn/Dockerfile docker/uwsgi/Dockerfile; do
+    assert_eq   "6.19 lock 입력 COPY --from=lock ($df)" "$(grep -cx 'COPY --from=lock pyproject.toml uv.lock /tmp/lock/' "$df")" 1
+    assert_eq   "6.19 uv export --frozen ($df)" "$(grep -c 'uv export --frozen' "$df")" 1
+    assert_eq   "6.19 pip install -r lock 해석 ($df)" "$(grep -c 'pip install --no-cache-dir -r /tmp/lock/requirements.txt' "$df")" 1
+    assert_eq   "6.19 그 밖의 사전설치는 -c lock 제약 ($df)" "$(grep -c 'pip install --no-cache-dir -c /tmp/lock/requirements.txt' "$df")" 1
+    assert_zero "6.19 lock 과 이중 관리되는 == 고정 ($df)" "$(grep -cE '(gunicorn|uvicorn|uwsgi|django)(\[standard\])?==' "$df")"
 done
-for spec in "fastapi_sample uvicorn docker/gunicorn/Dockerfile" "flask_sample gunicorn docker/gunicorn/Dockerfile" "flask_sample uwsgi docker/uwsgi/Dockerfile"; do
-    read -r smp pkg df <<<"$spec"
-    want=$(lockv "$pkg" "www/$smp/uv.lock"); got=$(grep -oE "(^|[[:space:]\"])$pkg(\[standard\])?==[0-9][0-9.]*" "$df" | head -1 | sed 's/.*==//')
-    if [ -n "$want" ] && [ "$want" = "$got" ]; then echo "  PASS 6.19 $smp lock $pkg==$want = $df"; else echo "  FAIL 6.19 $smp lock $pkg=[$want] image=[$got] (RV2-S-05)"; FAILS=$((FAILS+1)); fi
+for s in gunicorn uvicorn uwsgi daphne; do
+    f=compose/web-service/nginx_$s/docker-compose.yml
+    df=$(grep -m1 -oE 'docker/(gunicorn|uwsgi)/' "$f")Dockerfile
+    assert_eq "6.19 compose additional_contexts lock=django_sample ($s)" "$(grep -c 'lock: \.\./\.\./\.\./www/django_sample$' "$f")" 1
+    for x in $(grep -m1 -oE 'uv sync --inexact( --extra [a-z]+)+' "$f" | grep -oE -- '--extra [a-z]+' | awk '{print $2}'); do
+        assert_eq "6.19 $df export --extra $x (nginx_$s app)" "$(grep -A2 'uv export --frozen' "$df" | grep -cE -- "--extra $x( |$)")" 1
+    done
+done
+assert_eq "6.19 s2_build --build-context lock" "$(grep -c -- '--build-context lock=' script/test_run/s2_build.sh)" 1
+assert_eq "6.19 s2_build 빌드 이미지에서 uv sync --dry-run 대조" "$(grep -c 'sync --frozen --inexact --dry-run' script/test_run/s2_build.sh)" 1
+for spec in "fastapi_sample uvicorn" "flask_sample gunicorn" "flask_sample uwsgi"; do
+    read -r smp pkg <<<"$spec"
+    want=$(lockv "$pkg"); got=$(lockv "$pkg" "www/$smp/uv.lock")
+    if [ -n "$want" ] && [ "$want" = "$got" ]; then echo "  PASS 6.19 $smp lock $pkg==$got = django_sample lock"; else echo "  FAIL 6.19 $smp lock $pkg=[$got] django_sample lock=[$want] (RV2-S-05)"; FAILS=$((FAILS+1)); fi
 done
 assert_zero "6.19 django_sample 미사용 pytz" "$(grep -c 'pytz' www/django_sample/pyproject.toml)"
 echo
@@ -240,11 +252,11 @@ for s in gunicorn uvicorn uwsgi daphne; do
 done
 echo
 
-echo "===== 6.22 Django migrate 는 app 서비스에서만 기동 전 1회, celery·beat 는 app healthy 뒤 기동 (CL-WP1-08-R2b) ====="
+echo "===== 6.22 DB 초기화(Django migrate·비Django prestart.sh)는 app 서비스에서만 기동 전 1회, celery·beat 는 app healthy 뒤 기동 (CL-WP1-08-R2b, CL-WP1-08-R4) ====="
 for s in gunicorn uvicorn uwsgi daphne; do
     f=compose/web-service/nginx_$s/docker-compose.yml
     assert_eq "6.22 migrate 1회(app 만) ($s)" "$(grep -c 'manage.py migrate --noinput' "$f")" 1
-    assert_eq "6.22 uv sync → migrate → /data chown → 서버 순서 ($s)" "$(grep -cF '{ [ ! -f manage.py ] || python manage.py migrate --noinput; } && chown -R www-data:www-data /data && ' "$f")" 1
+    assert_eq "6.22 uv sync → migrate → prestart.sh → /data chown → 서버 순서 ($s)" "$(grep -cF '{ [ ! -f manage.py ] || python manage.py migrate --noinput; } && { [ ! -f prestart.sh ] || bash prestart.sh; } && chown -R www-data:www-data /data && ' "$f")" 1
     assert_eq "6.22 ${s}-app service_healthy 의존 3곳(webserver·celery·beat) ($s)" "$(grep -A1 -E "^      ${s}-app:\$" "$f" | grep -c 'condition: service_healthy')" 3
 done
 echo
@@ -253,6 +265,9 @@ echo "===== 6.23 s5_https 는 출고 http 샘플과 겹치지 않는 도메인 +
 assert_zero "6.23 s5 -d localhost (출고 http 샘플 server_name 충돌)" "$(grep -c -- '-d localhost' script/test_run/s5_https.sh)"
 n=$(grep -c 'S5_WAIT' script/test_run/s5_https.sh)
 if [ "$n" -ge 2 ]; then echo "  PASS 6.23 s5 준비 대기 ($n)"; else echo "  FAIL 6.23 s5 준비 대기 없음"; FAILS=$((FAILS+1)); fi
+# CL-WP4-08-R4: 5.1 은 OpenSSL 1.1·3 공통 -brief 출력(Protocol version·Ciphersuite)으로 판정 — OpenSSL 3 TLS1.3 은 `Protocol  :` 줄 없음
+assert_zero "6.23 s5 5.1 OpenSSL 3 미출력 'Protocol *:' 요구" "$(grep -c 'Protocol \*:' script/test_run/s5_https.sh)"
+assert_eq   "6.23 s5 5.1 s_client -brief 협상 프로토콜 판정" "$(grep -c "Protocol version: \*TLSv1" script/test_run/s5_https.sh)" 1
 echo
 
 echo "===== 6.24 .env 비밀값 한 줄 생성 헬퍼 — 빈 값·CHANGE_ME 는 채우고 기존 값·비밀 아닌 키는 불변 (RV2-S-01, 3회차 13) ====="
@@ -368,6 +383,20 @@ assert_zero "6.28 생성기의 compose/web-service 고정 경로" "$(cat config/
 for s in gunicorn uvicorn uwsgi daphne; do
     assert_zero "6.28 flower '외부에 노출' 문구 ($s)" "$(grep -c '외부에 노출' compose/web-service/nginx_$s/.env-example)"
 done
+echo
+
+echo "===== 6.30 비Django 샘플 DB 초기화는 서버 기동 전 1회(prestart.sh) — 워커별 create_all 경합 금지 (CL-WP1-08-R4) ====="
+assert_zero "6.30 flask_sample import 시 create_all" "$(grep -c '^with app.app_context' www/flask_sample/app/main.py)"
+assert_zero "6.30 fastapi_sample lifespan 에서 init_db" "$(awk '/async def lifespan/,/yield/' www/fastapi_sample/app/main.py | grep -c 'init_db()')"
+for smp in flask_sample fastapi_sample; do
+    assert_eq "6.30 $smp prestart.sh 가 init_db 호출" "$(grep -c 'init_db()' "www/$smp/prestart.sh" 2>/dev/null)" 1
+done
+assert_eq "6.30 .gitignore 샘플 로컬 SQLite www/*/*.db" "$(grep -cxF 'www/*/*.db' .gitignore)" 1
+echo
+
+echo "===== 6.31 run-ci 스택 뒤 호스트 소스 트리 소유권 런타임 단언, compose :? 필수 키 개별 빈 값 거부 (P6, P2) ====="
+assert_eq "6.31 run-ci find www ! -user" "$(grep -cF 'find "$ROOT/www" ! -user "$(id -u)"' script/ci/run-ci.sh)" 1
+assert_eq "6.31 verify_compose_yml :? 필수 키 개별 빈 값 거부" "$(grep -c ':? 필수 키 개별 빈 값 거부' script/test_run/verify_compose_yml.sh)" 1
 echo
 
 echo "===== 6 FAILS=$FAILS ====="
