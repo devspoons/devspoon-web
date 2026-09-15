@@ -24,7 +24,7 @@ echo "===== Pre: ensure stack down =====" | tee -a "$SUMMARY"
 docker compose --profile celery --profile redis down -v 2>&1 | tail -5
 
 echo "===== 3B.1 .env content =====" | tee -a "$SUMMARY"
-cat .env
+cut -d= -f1 .env   # 키 이름만 출력 (값은 비밀)
 need_vars=(LOG_DRIVER LOG_OPT_MAXF LOG_OPT_MAXS PROJECT_DIR FLOWER_ID FLOWER_PWD)
 missing=()
 for v in "${need_vars[@]}"; do

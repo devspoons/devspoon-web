@@ -195,7 +195,10 @@ PASSED_JOINED=$(IFS=', '; echo "${PASSED_STEPS[*]:-없음}")
 
 if [ -n "$FAILED_STEP" ]; then
     LOG_TAIL=""
-    [ -f "$FAILED_LOG" ] && LOG_TAIL=$(tail -n 30 "$FAILED_LOG" | cut -c1-2000)
+    # 전송 전 비밀값 마스킹: KEY=값 / KEY: 값 형태와 URL userinfo(redis://:pw@host)
+    [ -f "$FAILED_LOG" ] && LOG_TAIL=$(tail -n 30 "$FAILED_LOG" | cut -c1-2000 \
+        | sed -E -e 's/((PASS|PWD|SECRET|TOKEN)[A-Za-z_]*[[:space:]]*[=:][[:space:]]*)[^[:space:]]+/\1***/Ig' \
+                 -e 's#(://[^:/@[:space:]]*:)[^@[:space:]]+@#\1***@#g')
     MSG="❌ [${REPO_LABEL}] CI 테스트 실패
 저장소: ${REPO}
 브랜치: ${BRANCH} @ ${SHORT}
