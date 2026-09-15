@@ -20,9 +20,9 @@ for stack_dir in "$DEVSPOON"/compose/web-service/*/; do
       -e '/^DJANGO_SECRET_KEY=/d' .env-example > "$ENVF"
   printf 'DJANGO_SECRET_KEY=%s\n' "$(openssl rand -hex 32)" >> "$ENVF"
 
-  # docker compose --env-file "$ENVF" config validates the YAML + env interpolation
+  # docker compose config validates the YAML + env interpolation
   if docker compose --env-file "$ENVF" config --quiet 2>&1 | grep -qE "."; then
-    echo "  [FAIL] docker compose --env-file "$ENVF" config rejected the YAML"
+    echo "  [FAIL] docker compose config rejected the YAML"
     docker compose --env-file "$ENVF" config 2>&1 | tail -5
     FAIL=$((FAIL+1))
     continue
