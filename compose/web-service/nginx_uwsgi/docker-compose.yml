@@ -56,7 +56,10 @@ services:
     #     hard: ${ULIMIT_NOFILE_HARD:-65535}
 
   uwsgi-app:
-    build: ../../../docker/uwsgi/
+    build:
+      context: ../../../docker/uwsgi/
+      additional_contexts:
+        lock: ../../../www/django_sample
     image: ${IMAGE_NAMESPACE:-devspoon}-uwsgi-app:latest
     logging: *log_opts
     # working_dir 을 프로젝트 루트로 통일 — uv 가 pyproject.toml 을 자동 인식하게 함.

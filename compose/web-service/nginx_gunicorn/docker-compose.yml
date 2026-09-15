@@ -69,7 +69,10 @@ services:
     # └─────────────────────────────────────────────────────────────────────────
 
   gunicorn-app:
-    build: ../../../docker/gunicorn/
+    build:
+      context: ../../../docker/gunicorn/
+      additional_contexts:
+        lock: ../../../www/django_sample
     # 공용 Python 앱 이미지 — daphne / uvicorn / gunicorn 스택이 동일 image 태그 공유.
     # build: 가 본 서비스에만 정의되어 있고 celery / celery-beat 는 image: 만 참조하므로
     # 동일 build context 가 3회 재빌드되지 않는다 (1회 빌드 → 3 서비스 재사용).

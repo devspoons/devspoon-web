@@ -55,7 +55,10 @@ services:
     #     hard: ${ULIMIT_NOFILE_HARD:-65535}
 
   daphne-app:
-    build: ../../../docker/gunicorn/
+    build:
+      context: ../../../docker/gunicorn/
+      additional_contexts:
+        lock: ../../../www/django_sample
     image: ${IMAGE_NAMESPACE:-devspoon}-py-app:latest
     logging: *log_opts
     working_dir: /www/${PROJECT_DIR:?PROJECT_DIR must be set in .env}
