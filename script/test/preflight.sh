@@ -33,7 +33,7 @@ warn() {
 
 # ----- (1) 도구 -----
 echo "[1] Required tools"
-check "docker (>=24)"          "docker --version"
+check "docker (>=24)"          "[ \$(docker version -f '{{.Server.Version}}' | cut -d. -f1) -ge 24 ]"
 check "docker compose (v2)"    "docker compose version"
 check "jq"                     "jq --version"
 check "curl"                   "curl --version"
