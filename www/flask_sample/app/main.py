@@ -1,6 +1,7 @@
 """Flask 진입점 — flask-openapi3 + Scalar UI."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import jwt
@@ -55,7 +56,8 @@ app = OpenAPI(
     doc_url="/openapi.json",
 )
 
-DB_PATH = Path(__file__).resolve().parent.parent / "flask_sample.db"
+# 컨테이너는 SQLITE_PATH(named volume /data) — 호스트 소스 트리에 쓰지 않는다
+DB_PATH = Path(os.environ.get("SQLITE_PATH") or Path(__file__).resolve().parent.parent / "flask_sample.db")
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH.as_posix()}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
