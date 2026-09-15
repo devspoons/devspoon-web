@@ -967,13 +967,14 @@ curl -fsS https://<domain>/health || echo "FAIL"
 ```bash
 # 호스트(개발 머신)에서:
 cd www/django_sample
-uv add django-celery-beat            # 런타임 deps 추가 → pyproject.toml + uv.lock 갱신
+uv add requests                      # 런타임 deps 추가 → pyproject.toml + uv.lock 갱신
+uv add --optional celery django-celery-results  # extra 에 추가 → [project.optional-dependencies].celery
 uv add --dev pytest-mock             # 개발 deps 추가
 uv lock                              # 락만 재생성 (필요 시)
 
 # 변경 사항을 커밋:
 git add pyproject.toml uv.lock
-git commit -m "deps: add django-celery-beat"
+git commit -m "deps: add requests"
 
 # 컨테이너 재기동 → 시작 시점에 uv sync 가 자동 실행되어 시스템 Python 에 반영
 # (앱 이미지 사전설치도 uv.lock 에서 도출하므로 --build, §0.6.4):
