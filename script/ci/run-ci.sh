@@ -10,9 +10,10 @@
 #     4) docker-compose 검증 — 모든 스택 compose 문법 + 마운트
 #     5) docker 이미지 빌드  — 모든 Dockerfile
 #     6) 회귀(정적 불변식)
-#     7) healthcheck 동작    — 실제 스택 1종 기동 후 healthy 전환 관찰 (동작/반영)
-#     8) 샘플 프로젝트 동작  — django/flask/fastapi/php
-#     9) 스크립트 로그 생성 검증
+#     7) healthcheck 정적    — 6스택 compose healthcheck·depends_on 선언 (정적)
+#     8) 스택 매트릭스 동작  — 6스택 직렬 기동: 200·봇 차단·healthy·RestartCount·DEBUG·업로드 403
+#     9) 샘플 프로젝트 동작  — django/flask/fastapi/php
+#    10) 스크립트 로그 생성 검증
 #
 #   - 단계 중 하나라도 실패하면 즉시 중단하고, "어떤 단계에서 / 무슨 에러로"
 #     실패했는지 상세 로그(마지막 N 줄)를 Slack + Telegram 으로 전송한다.
@@ -108,7 +109,10 @@ step_conf_gen()   { bash "$ROOT/script/test_run/verify_conf_generators.sh"; }
 step_compose()    { bash "$ROOT/script/test_run/verify_compose_yml.sh"; }
 step_build()      { bash "$ROOT/script/test_run/s2_build.sh"; }
 step_regression() { bash "$ROOT/script/test_run/s6_regression.sh"; }
-step_healthcheck(){ RUNTIME=1 STACK=nginx_php-8.4 bash "$ROOT/script/test_run/verify_healthcheck.sh"; }
+step_healthcheck(){ RUNTIME=0 bash "$ROOT/script/test_run/verify_healthcheck.sh"; }   # 정적 불변식만 — 런타임은 step_stacks
+# 스택 6종 직렬(80/443 공유). 하나가 실패해도 나머지를 끝까지 돌려 실패 목록을 남긴다.
+step_stacks() { local rc=0 s; for s in gunicorn uvicorn uwsgi daphne php73 php84; do
+    echo "### stack: $s ###"; bash "$ROOT/script/test_run/verify_integration_${s}.sh" || { echo "stack FAIL: $s"; rc=1; }; done; return $rc; }
 
 step_samples() {
     local rc=0
@@ -173,6 +177,7 @@ run_step "docker-compose 검증"       step_compose
 run_step "docker 이미지 빌드"        step_build
 run_step "정적 회귀 불변식"          step_regression
 run_step "healthcheck 동작검증"      step_healthcheck
+run_step "스택 매트릭스 동작검증"    step_stacks
 run_step "샘플 프로젝트 동작"        step_samples
 run_step "스크립트 로그 생성검증"    step_logcheck
 
