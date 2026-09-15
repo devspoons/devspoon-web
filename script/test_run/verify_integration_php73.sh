@@ -2,7 +2,7 @@
 # Integration test for nginx_php-7.3 stack
 set +e
 
-DEVSPOON="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"
+DEVSPOON="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STACK_DIR="$DEVSPOON/compose/web-service/nginx_php-7.3"
 NGINX_CFG_DIR="$DEVSPOON/config/web-server/nginx/php"
 
