@@ -1271,7 +1271,7 @@ WSL2 에서는 컨테이너 시작 ~ healthcheck 첫 회 성공까지 시간이 
 
 ## Community
 
-- **Website** : Owner's personal website is [devspoon.com](devspoon.com)
+- **Website** : Owner's personal website is devspoon.com
 
 ## Partners and Users
 
@@ -1282,5 +1282,5 @@ WSL2 에서는 컨테이너 시작 ~ healthcheck 첫 회 성공까지 시간이 
 [devspoon.github.io]: https://github.com/devspoons/devspoon.github.io
 [youtube]: https://www.youtube.com/
 [inflearn]: https://www.inflearn.com/
-[bluebamus.github.io]: bluebamus.github.io
-[devspoons.github.io]: devspoons.github.io
+[bluebamus.github.io]: https://bluebamus.github.io
+[devspoons.github.io]: https://devspoons.github.io
