@@ -93,6 +93,7 @@ services:
     command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} && uv sync --inexact --extra gunicorn --extra celery && exec gunicorn -c /gunicorn/gunicorn.conf.py"
     environment:
       TZ: "Asia/Seoul"
+      WSGI_APP: "${WSGI_APP:-config.wsgi:application}"
       DJANGO_DEBUG: "${DJANGO_DEBUG:-0}"
       DJANGO_ALLOWED_HOSTS: "${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}"
     restart: always

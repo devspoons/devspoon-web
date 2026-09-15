@@ -8,6 +8,8 @@ Gunicorn Configuration
 =====================================================
 """
 
+import os
+
 # ============================================================================
 # 네트워크 바인딩 설정
 # ============================================================================
@@ -54,7 +56,8 @@ daemon = False  # 데몬 모드 설정 (True일 경우 백그라운드 실행)
 # pidfile = '/tmp/gunicorn.pid'
 
 # ASGI, WSGI 애플리케이션 경로 설정
-wsgi_app = "config.wsgi:application"
+# 환경변수 WSGI_APP 로 오버라이드 — 미설정 시 Django 기본값. 예) flask_sample: WSGI_APP=app.main:app
+wsgi_app = os.environ.get("WSGI_APP", "config.wsgi:application")
 
 # ============================================================================
 # 타임아웃 설정
