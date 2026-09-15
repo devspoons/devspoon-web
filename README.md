@@ -216,8 +216,9 @@ Af you want to use python and php service at same time, this solution can help y
        Then replace FLOWER_ID (CHANGE_ME_FLOWER_USER). CELERY_BROKER_URL is no longer stored in .env —
        it is composed from REDIS_PASSWORD at compose time (SSOT, see §0.5.3).
 
-       Then move to compose/web-service/nginx_gunicorn and run docker-compose.yml
+       Then move to the stack folder and run docker-compose.yml
        (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           cd compose/web-service/nginx_gunicorn
            docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        (redis-stats has been removed — see §0.5.7)
@@ -275,8 +276,9 @@ Af you want to use python and php service at same time, this solution can help y
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uwsgi/.env'
        Then replace FLOWER_ID. CELERY_BROKER_URL is no longer in .env (see §0.5.3).
 
-       Then move to compose/web-service/nginx_uwsgi and run docker-compose.yml
+       Then move to the stack folder and run docker-compose.yml
        (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           cd compose/web-service/nginx_uwsgi
            docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        (redis-stats has been removed — see §0.5.7)
@@ -327,8 +329,9 @@ Af you want to use python and php service at same time, this solution can help y
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uvicorn/.env'
        Then replace FLOWER_ID. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
 
-       Then move to compose/web-service/nginx_uvicorn and run docker-compose.yml
+       Then move to the stack folder and run docker-compose.yml
        (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           cd compose/web-service/nginx_uvicorn
            docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        ```
