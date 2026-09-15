@@ -39,7 +39,7 @@ echo "       a-record 가 있는 primary domain (예: aaa.com) 을 먼저 두세
 while :
 do
     echo -n "Enter the service domain(s) > "
-    read domain
+    read -r domain || { echo "입력이 없습니다(EOF) — 중단" >&2; exit 2; }
     echo  "Entered service domain: $domain"
     if [[ -z "$domain" ]]; then
         echo "  (값을 입력하세요)"
@@ -65,7 +65,7 @@ done
 while :
 do
     echo -n "Enter the user e-mail > "
-    read mail
+    read -r mail || { echo "입력이 없습니다(EOF) — 중단" >&2; exit 2; }
     echo  "Entered user e-mail: $mail"
     if [[ -z "$mail" ]]; then
         echo "  (값을 입력하세요)"
