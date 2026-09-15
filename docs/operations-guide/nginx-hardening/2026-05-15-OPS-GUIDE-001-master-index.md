@@ -29,9 +29,9 @@
 
 ## 1. 표기 규칙
 
-- **`<svc>`** — 백엔드 종류 marker: `gunicorn` | `uwsgi` | `php`.
+- **`<svc>`** — 백엔드 종류 marker: `gunicorn` | `uvicorn` | `uwsgi` | `php` (nginx 설정 폴더 기준. daphne 스택은 gunicorn 설정을 재사용).
 - **컨테이너 이름 패턴** — `nginx-<svc>-webserver`.
-- **Compose 경로 패턴** — `compose/web_service/nginx_<svc>/`.
+- **Compose 경로 패턴** — `compose/web-service/nginx_<svc>/` (php 는 `nginx_php-7.3` / `nginx_php-8.4`).
 - **Sample 경로** — `config/web-server/nginx/<svc>/sample_nginx{,_https,_proxy,_proxy_https}.conf`.
 - **심각도 (Severity)** — Critical / High / Medium / Low. Critical 은 단일 컨트롤 실패가 곧 사용자에게 보이는 장애 또는 기밀 유출로 직결되는 등급. High 는 점진적 비용 증가 또는 반복적 부분 장애. Medium / Low 는 quality-of-life 또는 defense-in-depth.
 - **공수 (Effort)** — XS (<1시간) / S (<1일) / M (<1주) / L (<1개월) / XL (다분기).
@@ -44,10 +44,10 @@
 본 시리즈가 작성될 시점의 fleet 은 2024~2026 년 트래픽 패턴에서 관측된 기회주의적 위협의 대부분을 흡수할 수 있는 defense-in-depth 의 기초 layer 들을 이미 갖추고 있습니다.
 
 - **봇 차단은 `nginx-ultimate-bad-bot-blocker` (ngxblocker)** 에 위임되어 6시간 단위 cron 자동 갱신이 동작 중이며, 본 시점 globalblacklist.conf 는 7,851개 이상의 regex map entry 를 포함.
-- **봇만 throttle** 되는 구조 — `bots.d/ddos.conf` 의 `limit_conn addr` / `limit_req zone=flood` directive 는 `$bot_iplimit` key 를 사용. 이 변수는 `$bad_bot` 이 truthy 일 때만 `$binary_remote_addr` 로 채워지므로 정상 사용자 트래픽은 limit 적용 대상에서 자동 제외됨.
+- **봇만 throttle** 되는 구조 — `bots.d/ddos.conf` 의 `limit_conn addr` / `limit_req zone=flood` directive 는 공용 `nginx.conf` http 블록이 `$bot_iplimit` key 로 정의한 zone(`limit_conn_zone ... zone=addr:50m`, `limit_req_zone ... zone=flood:50m rate=90r/s`)을 사용 (업스트림 `botblocker-nginx-settings.conf` 는 include 하지 않음). 이 변수는 `$bad_bot` 이 truthy 일 때만 `$binary_remote_addr` 로 채워지므로 정상 사용자 트래픽은 limit 적용 대상에서 자동 제외됨.
 - **SNI 미일치 트래픽은 TLS handshake 단계에서 거부** — 443 포트의 `ssl_reject_handshake on;` 이 빌드 시 자동 생성된 dummy 인증서 (`/etc/nginx/ssl/default/`) 와 함께 동작하여, 명시적 HTTPS default_server 가 없는 nginx host 에서 흔히 발생하는 인증서 CN/SAN 정보 누출을 차단.
-- **TLS 프로파일** — TLSv1.2 + TLSv1.3 만 허용, AEAD-only 암호 (ECDHE-{ECDSA,RSA}-AES{128,256}-GCM-SHA{256,384}, CHACHA20-POLY1305), OCSP stapling, 50 MB 세션 캐시, 세션 티켓 비활성 — **Mozilla Intermediate** 프로파일과 일치.
-- **헤더 버퍼와 타임아웃** (client_header_timeout=15s, client_body_timeout=15s, send_timeout=15s, large_client_header_buffers 4×16k) 으로 nginx 계층의 Slowloris/slow-POST 기초 방어.
+- **TLS 프로파일** — TLSv1.2 + TLSv1.3 만 허용, AEAD-only 암호 (ECDHE-{ECDSA,RSA}-AES{128,256}-GCM-SHA{256,384}, CHACHA20-POLY1305), OCSP stapling 기본 off (Let's Encrypt 인증서에 OCSP 응답기 URL 없음), HSTS `includeSubDomains` (`preload` 는 등록 결정 전까지 기본 제거), 10 MB 세션 캐시(`shared:SSL:10m`), 세션 티켓 비활성 — **Mozilla Intermediate** 프로파일과 일치.
+- **헤더 버퍼와 타임아웃** (client_header_timeout=15s, client_body_timeout=15s, send_timeout=60s, large_client_header_buffers 4×16k) 으로 nginx 계층의 Slowloris/slow-POST 기초 방어.
 
 본 시리즈는 2026 년 5월 review 에서 식별된 14개 강화 항목을 실행 가능한 runbook 으로 확장합니다. 각 항목은 **근거(Why) → 현재 상태(Current state) → 구현 단계와 설정 스니펫(Implementation) → 검증 방법(Testing) → 모니터링 / 알림 hook(Monitoring) → 롤백 절차(Rollback) → 흔히 빠지는 함정(Common pitfalls)** 의 7개 하위 절로 구성됩니다. 모든 항목은 적합한 sub-guide (OPS-GUIDE-002~006) 에 배치되어 있습니다.
 

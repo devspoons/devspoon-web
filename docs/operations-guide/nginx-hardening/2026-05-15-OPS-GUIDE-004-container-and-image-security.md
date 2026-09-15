@@ -40,7 +40,7 @@
 
 ### 1.3 구현
 
-각 compose 파일 (`compose/web_service/nginx_<svc>/docker-compose.yml`) 에:
+각 compose 파일 (`compose/web-service/nginx_<svc>/docker-compose.yml`) 에:
 
 ```yaml
 services:

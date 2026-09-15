@@ -131,7 +131,7 @@ docker exec nginx-gunicorn-webserver certbot renew --force-renewal --dry-run
 ### 1.6 흔히 빠지는 함정 (Common pitfalls)
 
 - **Hook 은 실행되었지만 reload 가 새 인증서를 받지 못한다.** `--deploy-hook` 은 갱신 성공 후에만 실행됩니다. 갱신은 성공했지만 deploy-hook 명령이 실패 (예: 무관한 config 변경 때문에 `nginx -t` 거부) 하면 새 인증서는 디스크에 있지만 nginx 는 여전히 옛 것을 서빙합니다. 완화: hook 안에 `nginx -t` 를 포함하여 실패를 즉시 잡고, post-hook 에서 "갱신 성공 + reload 실패" 패턴을 별도 alert 클래스로 감지.
-- **OCSP stapling 이 조용히 깨진다.** 상위 OCSP responder 에 도달 불가하면 `ssl_stapling_verify on` 으로 인해 nginx 가 OCSP 응답을 폐기하지만 TLS handshake 는 여전히 성공 (단지 느려짐). OCSP-must-staple 을 enforce 하는 클라이언트는 실패합니다. `openssl s_client -connect example.com:443 -status -servername example.com` 으로 테스트, `OCSP Response Status: successful` 확인.
+- **OCSP stapling 이 조용히 깨진다.** (기본 템플릿 `sample_nginx_https.conf` 는 `ssl_stapling off;` — Let's Encrypt 인증서에 OCSP 응답기 URL 이 없어 끔. 직접 켠 경우에만 해당.) 상위 OCSP responder 에 도달 불가하면 `ssl_stapling_verify on` 으로 인해 nginx 가 OCSP 응답을 폐기하지만 TLS handshake 는 여전히 성공 (단지 느려짐). OCSP-must-staple 을 enforce 하는 클라이언트는 실패합니다. `openssl s_client -connect example.com:443 -status -servername example.com` 으로 테스트, `OCSP Response Status: successful` 확인.
 - **DNS-01 vs HTTP-01.** wildcard 인증서는 DNS-01 challenge 필수. 현재 설정은 HTTP-01 만 사용, 이는 `server_name` 의 정확한 hostname 에서만 동작합니다. wildcard 가 필요하면 `certbot-dns-cloudflare` (또는 provider 별 플러그인) 설치 후 cron 명령 교체 — 비자명한 작업이며 API 자격증명 필요.
 
 ### 1.7 롤백 (Rollback)
@@ -146,14 +146,14 @@ docker exec nginx-gunicorn-webserver certbot renew --force-renewal --dry-run
 
 ### 2.1 근거
 
-현재 HSTS 헤더에는 `preload` 가 포함되어 있지만 https://hstspreload.org 에서 도메인이 등록되기 전까지는 효과가 없습니다. preload 목록에 들어가면 모든 Chrome/Firefox/Safari 사용자가 HTTPS 를 먼저 시도하므로 도메인에 대한 SSL-stripping MITM 공격이 완전히 사라집니다 — 사이트를 처음 방문하는 사용자에게도 적용.
+현재 `sample_nginx_https.conf` 의 HSTS 헤더는 `max-age=63072000; includeSubDomains` 이며 **`preload` 는 기본 제거**되어 있습니다 — 등록(사실상 비가역)을 결정한 뒤에만 도메인 conf 에 `preload` 를 추가하고 https://hstspreload.org 에 제출합니다. 헤더에 `preload` 가 있어도 등록 전에는 효과가 없습니다. preload 목록에 들어가면 모든 Chrome/Firefox/Safari 사용자가 HTTPS 를 먼저 시도하므로 도메인에 대한 SSL-stripping MITM 공격이 완전히 사라집니다 — 사이트를 처음 방문하는 사용자에게도 적용.
 
 ### 2.2 등록 전 체크리스트 (모두 true 여야 함)
 
 - [ ] HTTPS 가 `example.com` AND `www.example.com` AND 모든 서브도메인에서 서빙되는가?
 - [ ] 모든 HTTP 요청이 HTTPS 로 리다이렉트 (301) 되는가?
 - [ ] HSTS 헤더의 `max-age` ≥ 31536000 (1년, 최소 요건) 인가?
-- [ ] HSTS 헤더에 `includeSubDomains` AND `preload` 가 포함되어 있는가?
+- [ ] HSTS 헤더에 `includeSubDomains` AND `preload` 가 포함되어 있는가? (기본 템플릿에는 `preload` 가 없으므로 도메인 conf 에 직접 추가)
 - [ ] 도메인 소유자가 HTTPS 운영을 향후 무기한 유지할 것을 확인했는가? preload 목록에서 제거는 3~12개월 전파 시간이 필요.
 
 ### 2.3 등록 절차

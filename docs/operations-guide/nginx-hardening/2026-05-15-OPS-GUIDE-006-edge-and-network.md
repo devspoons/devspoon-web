@@ -98,7 +98,7 @@ curl --http3 -sI https://example.com/
 
 ### 2.2 현재 상태
 
-비활성. nginx.conf 의 각 백엔드 (gunicorn/uwsgi/php) 에 활성화 가이드 주석 블록이 추가되어 있어 운영 환경 확인 후 한 블록만 주석 해제하면 됨.
+비활성. 4종 `nginx.conf`(gunicorn/uvicorn/uwsgi/php) http 블록에 CloudFlare / AWS ALB / 사내 LB 예시 주석 블록이 있고 비주석 `set_real_ip_from` 은 없어 운영 환경 확인 후 한 블록만 주석 해제하면 됨.
 
 ### 2.3 활성화 요약
 
@@ -173,13 +173,13 @@ tail -1 /log/nginx/<your-domain>_access.log | awk '{print $1}'
 
 ### 3.1 근거
 
-compose 파일이 호스트 디렉터리 `compose/web_service/nginx_<svc>/ssl/certs/` 를 컨테이너의 `/etc/ssl/certs/` 로 bind-mount, 컨테이너의 system CA 번들을 호스트 filesystem 에 그대로 교체. CA 번들은 공개 정보이므로 기밀 문제는 아니지만 의도되지 않은 효과: 호스트 디렉터리에 운영자가 두지 않은 ~200 CA 인증서가 결국 자리잡음. 미래의 contributor 가 이 파일들이 왜 존재하는지 이해 못 하고 삭제하면 컨테이너의 outbound TLS 가 깨짐.
+(과거) compose 파일이 호스트 디렉터리 `compose/web-service/nginx_<svc>/ssl/certs/` 를 컨테이너의 `/etc/ssl/certs/` 로 bind-mount, 컨테이너의 system CA 번들을 호스트 filesystem 에 그대로 교체. CA 번들은 공개 정보이므로 기밀 문제는 아니지만 의도되지 않은 효과: 호스트 디렉터리에 운영자가 두지 않은 ~200 CA 인증서가 결국 자리잡음. 미래의 contributor 가 이 파일들이 왜 존재하는지 이해 못 하고 삭제하면 컨테이너의 outbound TLS 가 깨짐.
 
 또한 2026년 5월 review 에서 발견된 근본 원인: build 시점에 `/etc/ssl/certs/default/` 에 두려 했던 dummy 인증서가 bind mount 에 의해 덮어쓰여졌음. dummy 는 `/etc/nginx/ssl/default/` (bind-mount 대상 아님) 로 이동되어 해결.
 
 ### 3.2 현재 상태
 
-`/etc/ssl/certs/` 가 호스트와 bind-mount 됨. system CA 번들이 호스트에 그대로 노출.
+**해소됨.** 현재 compose 는 `./ssl/certs:/etc/ssl/certs` 를 마운트하지 않습니다. webserver 의 SSL 관련 마운트는 `./ssl/dhparam/:/etc/nginx/dhparam-backup/`(이미지 dhparam 백업·복원)와 `./ssl/letsencrypt/:/etc/letsencrypt/` 뿐입니다. 아래 §3.3~3.7 은 이 정리의 기록이자 재발 시 참고용입니다.
 
 ### 3.3 권장 정리
 
@@ -257,7 +257,7 @@ sequenceDiagram
 
 ### 5.1 근거
 
-현재 `client_header_timeout=15s`, `client_body_timeout=15s`, `send_timeout=15s` 는 좋은 baseline. 추가로 IP 단위 동시 연결을 봇 상태와 무관하게 제한하는 것이 본격적인 Slowloris 방어.
+현재 `client_header_timeout=15s`, `client_body_timeout=15s` 는 좋은 baseline (`send_timeout` 은 대용량 응답 전송 여유를 위해 60s). 추가로 IP 단위 동시 연결을 봇 상태와 무관하게 제한하는 것이 본격적인 Slowloris 방어.
 
 ### 5.2 구현
 
