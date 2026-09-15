@@ -8,8 +8,8 @@
 #   containers_stable <container-id>...                                           # docker inspect 두 번 + 판정
 # =============================================================================
 stable_judge() {
-    local s1 r1 h1 s2 r2 h2
-    read -r s1 r1 h1 <<<"$1"
+    local s1 r1 s2 r2 h2
+    read -r s1 r1 _ <<<"$1"
     read -r s2 r2 h2 <<<"$2"
     [ "$s1" = running ] && [ "$s2" = running ] && [ "$r1" = 0 ] && [ "$r2" = 0 ] \
         && { [ "${h2:-none}" = healthy ] || [ "${h2:-none}" = none ]; }
