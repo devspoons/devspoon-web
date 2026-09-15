@@ -1276,11 +1276,3 @@ WSL2 에서는 컨테이너 시작 ~ healthcheck 첫 회 성공까지 시간이 
 ## Partners and Users
 
 - Lim Do-Hyun Owner Developer/project Manager, bluebamus@gmail.com
-
-<!-- Markdown link & img dfn's -->
-
-[devspoon.github.io]: https://github.com/devspoons/devspoon.github.io
-[youtube]: https://www.youtube.com/
-[inflearn]: https://www.inflearn.com/
-[bluebamus.github.io]: https://bluebamus.github.io
-[devspoons.github.io]: https://devspoons.github.io
