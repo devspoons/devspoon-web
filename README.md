@@ -128,20 +128,22 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml** (pick one version)
 
        ```
-       PHP 7.3 →  cd compose/web-service/nginx_php-7.3
-       PHP 8.4 →  cd compose/web-service/nginx_php-8.4
-
-       Execute docker-compose.yml using "docker compose up -d" command.
        Before first start, create .env and generate its secret (repository root,
        <ver> = 7.3 or 8.4, §0.6.1):
            cp compose/web-service/nginx_php-<ver>/.env-example compose/web-service/nginx_php-<ver>/.env
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_php-<ver>/.env'
        (REDIS_PASSWORD is empty in .env-example; the helper fills it with a random value.)
+
+       Then move to the stack folder and execute docker-compose.yml
+       (--build rebuilds the image after an upgrade or a Dockerfile change):
+           PHP 7.3 →  cd compose/web-service/nginx_php-7.3
+           PHP 8.4 →  cd compose/web-service/nginx_php-8.4
+           docker compose up -d --build
        redis is gated by "profiles: redis" in PHP stacks — start it via:
            docker compose --profile redis up -d
 
        Cannot run both stacks at once: both bind host ports 80/443.
-       To switch versions: "docker compose stop" in the running stack first, then "up -d" in the other.
+       To switch versions: "docker compose stop" in the running stack first, then "up -d --build" in the other.
        ```
 
        > **PHP `.env-example` 의 변수 셋이 Python stack 과 다릅니다.** PHP 스택은 단순화된
@@ -206,14 +208,15 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml**
 
        ```
-       Get move to compose/web-service/nginx_gunicorn
        Before first start, create .env and generate its secrets (repository root, §0.6.1):
            cp compose/web-service/nginx_gunicorn/.env-example compose/web-service/nginx_gunicorn/.env
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_gunicorn/.env'
        Then replace FLOWER_ID (CHANGE_ME_FLOWER_USER). CELERY_BROKER_URL is no longer stored in .env —
        it is composed from REDIS_PASSWORD at compose time (SSOT, see §0.5.3).
 
-       Run docker-compose.yml using "docker compose up -d".
+       Then move to compose/web-service/nginx_gunicorn and run docker-compose.yml
+       (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        (redis-stats has been removed — see §0.5.7)
        ```
@@ -265,13 +268,14 @@ Af you want to use python and php service at same time, this solution can help y
 
      - **Run docker-compose.yml**
        ```
-       Get move to compose/web-service/nginx_uwsgi
        Before first start, create .env and generate its secrets (repository root, §0.6.1):
            cp compose/web-service/nginx_uwsgi/.env-example compose/web-service/nginx_uwsgi/.env
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uwsgi/.env'
        Then replace FLOWER_ID. CELERY_BROKER_URL is no longer in .env (see §0.5.3).
 
-       Execute docker-compose.yml using "docker compose up -d".
+       Then move to compose/web-service/nginx_uwsgi and run docker-compose.yml
+       (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        (redis-stats has been removed — see §0.5.7)
        ```
@@ -316,13 +320,14 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml**
 
        ```
-       Get move to compose/web-service/nginx_uvicorn
        Before first start, create .env and generate its secrets (repository root, §0.6.1):
            cp compose/web-service/nginx_uvicorn/.env-example compose/web-service/nginx_uvicorn/.env
            bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uvicorn/.env'
        Then replace FLOWER_ID. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
 
-       Execute docker-compose.yml using "docker compose up -d".
+       Then move to compose/web-service/nginx_uvicorn and run docker-compose.yml
+       (--build rebuilds the images after an upgrade or a Dockerfile / uv.lock change, §0.6.4):
+           docker compose up -d --build
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
        ```
 
@@ -359,7 +364,7 @@ Af you want to use python and php service at same time, this solution can help y
 
 | 폴더 | 백엔드 / 스택 | 비고 |
 |---|---|---|
-| `www/django_sample/` | gunicorn / uwsgi / daphne / uvicorn 모두에서 사용 가능. Django 6.0 (`django>=6.0,<6.1`) + uv-managed (`pyproject.toml`, `uv.lock`) | `.python-version` = 3.14. 호스트에선 `uv sync` 가 `.venv` 자동 생성, 컨테이너에선 시스템 site-packages 직설치 (§8) |
+| `www/django_sample/` | gunicorn / uwsgi / daphne / uvicorn 모두에서 사용 가능. Django 6.0 (`django>=6.0,<6.1`) + uv-managed (`pyproject.toml`, `uv.lock`) | `.python-version` = 3.14. 호스트에선 `uv sync --extra celery` 가 `.venv` 자동 생성(settings 의 `django_celery_beat` 가 extra `celery` 소속), 컨테이너에선 시스템 site-packages 직설치 (§8) |
 | `www/fastapi_sample/` | uvicorn 전용. FastAPI 최신, uv-managed | §0.5.9 도입 — uvicorn 스택의 동작 검증용 |
 | `www/flask_sample/` | gunicorn 또는 uwsgi 전용 (WSGI). Flask, uv-managed | §0.5.9 도입 — WSGI 스택의 비-Django 검증용 |
 | `www/php_sample/` | php-fpm (7.3 또는 8.4) 용. 단일 `index.php` | 컨테이너 내부 경로 `/www/php_sample` (`../../../www:/www` 마운트) |
@@ -371,7 +376,7 @@ Af you want to use python and php service at same time, this solution can help y
 2) config/web-server/nginx/<stack>/nginx_http_conf.sh -w myapp -d ... 로 도메인 conf 생성.
 3) compose/web-service/nginx_<stack>/.env 의 PROJECT_DIR=myapp 으로 설정.
    (docker-compose.yml 은 ${PROJECT_DIR} 변수 치환만 하며, 값 자체는 .env 가 보유)
-4) docker compose up -d --build
+4) cd compose/web-service/nginx_<stack> && docker compose up -d --build
 ```
 
 ### `conf.d/` 의 영구 sample `.conf` 정책 (테스트용 즉시 검증)
@@ -566,7 +571,7 @@ bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-servic
 - 값이 비었거나 옛 `CHANGE_ME_*` 인 비밀 키만 `openssl rand -hex` 무작위 값으로 채웁니다(`DJANGO_SECRET_KEY` 100 hex, 그 외 64 hex). 이미 값이 있는 키는 바꾸지 않습니다.
 - 같은 폴더의 임시 파일에 쓴 뒤 교체하며, 값을 생성했으면 권한을 600 으로 좁힙니다(더 엄격하면 유지). openssl 이 없거나 실패하면 `FAIL` 로 끝나고 `.env` 내용은 바뀌지 않습니다.
 - `FLOWER_ID` 는 비밀이 아니라 채우지 않습니다 — `CHANGE_ME_FLOWER_USER` 를 직접 바꾸세요.
-- 호스트에서 `manage.py` 를 직접 실행할 때만 `www/django_sample/secrets.json` 이 필요합니다: `bash -c '. script/lib/django_secrets.sh && ensure_django_secrets'` (없을 때만 생성, 600). 컨테이너는 `DJANGO_SECRET_KEY` 환경변수를 씁니다.
+- 호스트에서 `manage.py` 를 직접 실행할 때만 `www/django_sample/secrets.json` 이 필요합니다: `bash -c '. script/lib/django_secrets.sh && ensure_django_secrets'` (없을 때만 생성, 600). 의존성은 `cd www/django_sample && uv sync --extra celery` 로 설치합니다 — `INSTALLED_APPS` 의 `django_celery_beat` 가 extra `celery` 에만 있어 `--extra celery` 없이는 `ModuleNotFoundError` 입니다. 컨테이너는 `DJANGO_SECRET_KEY` 환경변수를 씁니다.
 
 > **업그레이드 노트 — 이전 버전에서 쓰던 `.env` 를 유지하는 경우**: 옛 `.env` 에는 `DJANGO_SECRET_KEY` 줄이 없거나 `CHANGE_ME_*` 값이 남아 있을 수 있습니다. 위 헬퍼를 같은 `.env` 에 한 번 실행하면 같은 폴더 `docker-compose*.yml` 이 `:?` 로 요구하는 비밀 키(이름에 SECRET·PASSWORD·PWD 포함) 중 없는 키를 끝에 추가하고 `CHANGE_ME_*` 를 교체하며, 기존 값은 보존하고 권한을 600 으로 맞춥니다. `KEY=""` 처럼 따옴표로 둘러싼 빈 값은 채우지 않으니 먼저 `KEY=` 로 고치세요.
 
@@ -955,7 +960,7 @@ curl -fsS https://<domain>/health || echo "FAIL"
 
 #### 개발 머신(호스트) 에서는 정반대
 
-`UV_PROJECT_ENVIRONMENT` 가 호스트에는 없으므로, 개발자는 `cd www/django_sample && uv sync` 만으로 자동으로 `.venv` 가 만들어집니다. 호스트와 컨테이너가 같은 `pyproject.toml` 을 쓰지만 설치 위치만 다르게 가져갑니다.
+`UV_PROJECT_ENVIRONMENT` 가 호스트에는 없으므로, 개발자는 `cd www/django_sample && uv sync --extra celery` 만으로 자동으로 `.venv` 가 만들어집니다(`--extra celery` 는 settings 의 `django_celery_beat` 때문에 호스트 `manage.py` 실행에 필요). 호스트와 컨테이너가 같은 `pyproject.toml` 을 쓰지만 설치 위치만 다르게 가져갑니다.
 
 #### 의존성 추가/갱신 워크플로우
 
@@ -970,8 +975,10 @@ uv lock                              # 락만 재생성 (필요 시)
 git add pyproject.toml uv.lock
 git commit -m "deps: add django-celery-beat"
 
-# 컨테이너 재기동 → 시작 시점에 uv sync 가 자동 실행되어 시스템 Python 에 반영:
-docker compose stop && docker compose up -d
+# 컨테이너 재기동 → 시작 시점에 uv sync 가 자동 실행되어 시스템 Python 에 반영
+# (앱 이미지 사전설치도 uv.lock 에서 도출하므로 --build, §0.6.4):
+cd ../../compose/web-service/nginx_<service>
+docker compose stop && docker compose up -d --build
 ```
 
 #### 트러블슈팅 예시
