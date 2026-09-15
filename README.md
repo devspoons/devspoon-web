@@ -919,7 +919,8 @@ git pull origin main
 cd compose/web-service/nginx_<service>
 docker compose build --no-cache <service>-app   # 필요한 서비스만
 
-# 3. 중단 (프로필 서비스까지 — 프로필 없는 stop 은 celery·redis 프로필 컨테이너를 남김)
+# 3. 중단 (프로필 서비스까지 — Python 스택은 celery 프로필, PHP 스택은 redis 프로필 서비스까지 함께 정지.
+#    프로필 없는 stop 은 이들을 남김. 스택에 없는 프로필 이름은 무시되므로 두 스택 모두 같은 명령)
 docker compose --profile celery --profile redis stop
 
 # 4. 시작
