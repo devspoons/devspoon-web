@@ -105,7 +105,7 @@ run_step() {
 # ----------------------------------------------------------------------------
 step_preflight()  { bash "$ROOT/script/test/preflight.sh"; }
 step_prereq()     { bash "$ROOT/script/test_run/s0_prereq.sh"; }
-step_conf_gen()   { bash "$ROOT/script/test_run/verify_conf_generators.sh"; }
+step_conf_gen()   { bash "$ROOT/script/test_run/s1b_nginx_conf_generators.sh"; }
 step_compose()    { bash "$ROOT/script/test_run/verify_compose_yml.sh"; }
 step_build()      { bash "$ROOT/script/test_run/s2_build.sh"; }
 step_regression() { bash "$ROOT/script/test_run/s6_regression.sh"; }
