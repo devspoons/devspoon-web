@@ -35,9 +35,9 @@ Af you want to use python and php service at same time, this solution can help y
 
 - **Ready-to-run sample apps** : Django (`django_sample`), FastAPI (`fastapi_sample`), Flask (`flask_sample`), and PHP (`php_sample`) live under `www/` so each of the six stacks (gunicorn / uvicorn / uwsgi / daphne / php-7.3 / php-8.4) can be brought up immediately after `git clone`. Samples are domain-agnostic — bind to `localhost` first, swap to your domain when ready.
 
-- **Worker privilege drop (`www-data`)** : gunicorn / uvicorn / uwsgi / php-fpm workers all run as `www-data` (uid 33) — the container boots as root (for `uv sync` etc.) but workers are dropped to least privilege. Each compose `command` runs `chown -R www-data:www-data /www/${PROJECT_DIR}` before app startup so SQLite/media writes succeed under the dropped UID. uwsgi master uses `uid/gid = www-data`; gunicorn arbiter stays root and forks workers via setuid.
+- **Worker privilege drop (`www-data`)** : gunicorn / uvicorn / uwsgi / php-fpm workers all run as `www-data` (uid 33) — the container boots as root (for `uv sync` etc.) but workers are dropped to least privilege. The host source tree bind-mounted at `/www` is never chowned: the only writable paths are the named volume `/data` (SQLite, `SQLITE_PATH`) and the log directories, which the compose `command` chowns to `www-data` before startup (§0.6.2). uwsgi master uses `uid/gid = www-data`; gunicorn arbiter stays root and forks workers via setuid; celery / celery-beat run with `--uid/--gid www-data`. Exception: the daphne process has no privilege-drop option and runs as root inside its container.
 
-- **Secret separation (`.env-example`)** : Every stack ships a tracked `.env-example` (`compose/web-service/nginx_*/.env-example`), while the actual `.env` is gitignored. Copy → fill in Redis password / Flower credentials / etc., never commit the live file. `${VAR:?}` checks in the compose files fail-fast if a required secret is missing.
+- **Secret separation (`.env-example`)** : Every stack ships a tracked `.env-example` (`compose/web-service/nginx_*/.env-example`), while the actual `.env` is gitignored. Copy it to `.env`, then generate the empty secrets (`DJANGO_SECRET_KEY` / `REDIS_PASSWORD` / `FLOWER_PWD`) with `script/lib/django_secrets.sh` (`ensure_env_secrets`, §0.6.1); never commit the live file. `${VAR:?}` checks in the compose files fail-fast if a required secret is missing.
 
 - **Bot blocker auto-update + supply-chain hardening** : Integrates [nginx-ultimate-bad-bot-blocker](https://github.com/mitchellkrogza/nginx-ultimate-bad-bot-blocker). Container cron refreshes the blocklist every 6 hours. The installer scripts themselves are pinned to a fixed commit SHA and verified with sha256 at build time — no `master` floating reference.
 
@@ -92,10 +92,10 @@ Af you want to use python and php service at same time, this solution can help y
        In config/web-server/nginx/php
        There are 2 shell scripts (nginx_http_conf.sh, nginx_https_conf.sh)
          - nginx_http_conf.sh  → sample_nginx_http.conf  → conf.d/<name>_php_ng_http.conf
-         - nginx_https_conf.sh → sample_nginx_https.conf → conf.d/<name>_php_https_ng.conf
+         - nginx_https_conf.sh → sample_nginx_https.conf → conf.d/<name>_php_ng_https.conf
        Use "chmod +x xxxx.sh" command, you activate shell script and run. then it make conf file
        nginx's a conf file will be in conf.d folder. HTTP output always ends with "_http".
-       if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
+       Options: "./nginx_http_conf.sh -h" (no manual path escaping needed)
        ```
 
        ```
@@ -132,8 +132,11 @@ Af you want to use python and php service at same time, this solution can help y
        PHP 8.4 →  cd compose/web-service/nginx_php-8.4
 
        Execute docker-compose.yml using "docker compose up -d" command.
-       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD
-       (placeholder REDIS_PASSWORD=CHANGE_ME_REDIS_PASSWORD must be replaced).
+       Before first start, create .env and generate its secret (repository root,
+       <ver> = 7.3 or 8.4, §0.6.1):
+           cp compose/web-service/nginx_php-<ver>/.env-example compose/web-service/nginx_php-<ver>/.env
+           bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_php-<ver>/.env'
+       (REDIS_PASSWORD is empty in .env-example; the helper fills it with a random value.)
        redis is gated by "profiles: redis" in PHP stacks — start it via:
            docker compose --profile redis up -d
 
@@ -155,11 +158,11 @@ Af you want to use python and php service at same time, this solution can help y
      - **Gunicorn service installation [nginx for gunicorn]**
 
        ```
-       In config/web-server/gunicorn
-       There are 2 shell script
-       Use "chmod +x xxxx.sh" command, you activate shell script and run.sh then it make conf file
-       nginx's a conf file will be in conf.d folder
-       * if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
+       In config/web-server/nginx/gunicorn
+       There are 2 shell scripts (nginx_http_conf.sh, nginx_https_conf.sh)
+       Use "chmod +x xxxx.sh" command, you activate shell script and run. then it make conf file
+       nginx's a conf file will be in conf.d folder (<name>_gunicorn_ng_http.conf / <name>_gunicorn_ng_https.conf)
+       Options: "./nginx_http_conf.sh -h" (no manual path escaping needed)
        ```
 
        ```
@@ -181,15 +184,20 @@ Af you want to use python and php service at same time, this solution can help y
        run.sh / make_run.sh 패턴은 사용하지 않습니다. 현재 docker-compose.yml 의
        gunicorn-app service 가 직접:
 
-         command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} \
-                  && uv sync --inexact --extra gunicorn --extra celery \
+         command: bash -c "uv sync --inexact --extra gunicorn --extra celery \
+                  && { [ ! -f manage.py ] || python manage.py migrate --noinput; } \
+                  && { [ ! -f prestart.sh ] || bash prestart.sh; } \
+                  && chown -R www-data:www-data /data \
                   && exec gunicorn -c /gunicorn/gunicorn.conf.py"
 
        위 한 줄로
-         (1) /www/${PROJECT_DIR} 소유권을 www-data 로 강하 (워커 권한 강하, §0.5)
-         (2) uv 가 pyproject.toml 의 [gunicorn,celery] extras 를 컨테이너 site-packages
+         (1) uv 가 pyproject.toml 의 [gunicorn,celery] extras 를 컨테이너 site-packages
              에 동기화 (venv 미사용 정책 §8)
-         (3) gunicorn 을 사전 작성된 /gunicorn/gunicorn.conf.py 로 기동
+         (2) 서버 기동 전 DB 초기화 1회 — Django(manage.py)는 migrate, 비Django(flask/fastapi)는
+             prestart.sh (app 서비스에서만, §0.6.3)
+         (3) 쓰기 경로인 named volume /data(SQLite) 만 www-data 소유로 맞춤 —
+             호스트 소스 트리 /www 의 소유권은 바꾸지 않음 (§0.6.2)
+         (4) gunicorn 을 /gunicorn/gunicorn.conf.py 로 기동 (워커 user="www-data")
        을 모두 처리합니다. 별도 run.sh 작성 불필요.
 
        새 프로젝트로 교체하려면 .env 의 PROJECT_DIR 만 바꾸세요.
@@ -199,8 +207,10 @@ Af you want to use python and php service at same time, this solution can help y
 
        ```
        Get move to compose/web-service/nginx_gunicorn
-       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
-       FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is no longer stored in .env —
+       Before first start, create .env and generate its secrets (repository root, §0.6.1):
+           cp compose/web-service/nginx_gunicorn/.env-example compose/web-service/nginx_gunicorn/.env
+           bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_gunicorn/.env'
+       Then replace FLOWER_ID (CHANGE_ME_FLOWER_USER). CELERY_BROKER_URL is no longer stored in .env —
        it is composed from REDIS_PASSWORD at compose time (SSOT, see §0.5.3).
 
        Run docker-compose.yml using "docker compose up -d".
@@ -213,11 +223,11 @@ Af you want to use python and php service at same time, this solution can help y
      - **UWSGI service installation [nginx for uwsgi]**
 
        ```
-       In config/web-server/uwsgi
-       There are 2 shell script
-       Use "chmod +x xxxx.sh" command, you activate shell script and run.sh then it make conf file
-       nginx's a conf file will be in conf.d folder
-       * if your webroot path has sub-level, input type must be following as "\\/www\\/shop\\/shop_kings
+       In config/web-server/nginx/uwsgi
+       There are 2 shell scripts (nginx_http_conf.sh, nginx_https_conf.sh)
+       Use "chmod +x xxxx.sh" command, you activate shell script and run. then it make conf file
+       nginx's a conf file will be in conf.d folder (<name>_uwsgi_ng_http.conf / <name>_uwsgi_ng_https.conf)
+       Options: "./nginx_http_conf.sh -h" (no manual path escaping needed)
        ```
 
        ```
@@ -240,12 +250,15 @@ Af you want to use python and php service at same time, this solution can help y
        run.sh / make_run.sh 패턴은 사용하지 않습니다. 현재 docker-compose.yml 의
        uwsgi-app service 가 직접:
 
-         command: bash -c "chown -R www-data:www-data /www/${PROJECT_DIR} \
-                  && uv sync --inexact --extra uwsgi --extra celery \
-                  && exec uwsgi --ini /uwsgi/uwsgi.ini"
+         command: bash -c "uv sync --inexact --extra uwsgi --extra celery \
+                  && { [ ! -f manage.py ] || python manage.py migrate --noinput; } \
+                  && { [ ! -f prestart.sh ] || bash prestart.sh; } \
+                  && chown -R www-data:www-data /data \
+                  && exec uwsgi --ini /application/uwsgi.ini"
 
-       위 한 줄로 (1) /www 소유권 강하 (2) uv 의 [uwsgi,celery] extras 동기화
-       (3) uwsgi master 기동 을 모두 처리합니다. 별도 run.sh 작성 불필요.
+       위 한 줄로 (1) uv 의 [uwsgi,celery] extras 동기화 (2) 서버 기동 전 DB 초기화 1회
+       (migrate 또는 prestart.sh, §0.6.3) (3) /data 볼륨만 www-data 소유로 — 소스 트리 /www 불변
+       (4) uwsgi master 기동(uid/gid = www-data) 을 모두 처리합니다. 별도 run.sh 작성 불필요.
 
        새 프로젝트로 교체하려면 .env 의 PROJECT_DIR 만 바꾸세요.
        ```
@@ -253,8 +266,10 @@ Af you want to use python and php service at same time, this solution can help y
      - **Run docker-compose.yml**
        ```
        Get move to compose/web-service/nginx_uwsgi
-       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
-       FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is no longer in .env (see §0.5.3).
+       Before first start, create .env and generate its secrets (repository root, §0.6.1):
+           cp compose/web-service/nginx_uwsgi/.env-example compose/web-service/nginx_uwsgi/.env
+           bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uwsgi/.env'
+       Then replace FLOWER_ID. CELERY_BROKER_URL is no longer in .env (see §0.5.3).
 
        Execute docker-compose.yml using "docker compose up -d".
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
@@ -302,8 +317,10 @@ Af you want to use python and php service at same time, this solution can help y
 
        ```
        Get move to compose/web-service/nginx_uvicorn
-       Before first start, copy .env-example to .env and fill in REDIS_PASSWORD,
-       FLOWER_ID, FLOWER_PWD. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
+       Before first start, create .env and generate its secrets (repository root, §0.6.1):
+           cp compose/web-service/nginx_uvicorn/.env-example compose/web-service/nginx_uvicorn/.env
+           bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_uvicorn/.env'
+       Then replace FLOWER_ID. CELERY_BROKER_URL is composed from REDIS_PASSWORD (§0.5.3).
 
        Execute docker-compose.yml using "docker compose up -d".
        For celery / celery-beat / flower: "docker compose --profile celery up -d".
@@ -315,8 +332,25 @@ Af you want to use python and php service at same time, this solution can help y
      Stack: compose/web-service/nginx_daphne/
      Logrotate dropins: script/logrotate/daphne/{daphne,celery/daphne-celery,celerybeat/daphne-celerybeat}
      Image: shares devspoon-py-app:latest (gunicorn / uvicorn 과 동일 베이스, §0.5.4)
-     Use case: Django Channels 같은 WebSocket-only 요구사항. nginx conf 는 gunicorn 스택의
-     sample 을 base 로 location 별 ws_pass 를 추가하여 사용.
+     Use case: Django Channels 같은 WebSocket-only 요구사항. nginx 설정은 gunicorn 스택의
+     config/web-server/nginx/gunicorn/ 을 그대로 마운트해 재사용한다.
+     .env: nginx_gunicorn 과 같은 절차 (cp .env-example .env → ensure_env_secrets, §0.6.1)
+     ```
+
+     WebSocket 경로는 도메인 conf 에 별도 location 을 두고 Upgrade 헤더를 전달한다.
+     nginx.conf 가 `map $http_upgrade $connection_upgrade` 를 정의한다. `proxy_params` 는
+     `Connection ""` 를 설정하므로 이 location 에서는 include 하지 않는다 (같은 헤더 2회 전송 방지):
+
+     ```nginx
+     location /ws/ {
+         proxy_pass http://daphne-app:8000;
+         proxy_http_version 1.1;
+         proxy_set_header Host $host;
+         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+         proxy_set_header X-Forwarded-Proto $scheme;
+         proxy_set_header Upgrade $http_upgrade;
+         proxy_set_header Connection $connection_upgrade;
+     }
      ```
 
 ## www 샘플 앱 (`www/`)
@@ -325,10 +359,10 @@ Af you want to use python and php service at same time, this solution can help y
 
 | 폴더 | 백엔드 / 스택 | 비고 |
 |---|---|---|
-| `www/django_sample/` | gunicorn / uwsgi / daphne / uvicorn 모두에서 사용 가능. Django 4.0.6 + uv-managed (`pyproject.toml`, `uv.lock`) | `.python-version` = 3.14. 호스트에선 `uv sync` 가 `.venv` 자동 생성, 컨테이너에선 시스템 site-packages 직설치 (§8) |
+| `www/django_sample/` | gunicorn / uwsgi / daphne / uvicorn 모두에서 사용 가능. Django 6.0 (`django>=6.0,<6.1`) + uv-managed (`pyproject.toml`, `uv.lock`) | `.python-version` = 3.14. 호스트에선 `uv sync` 가 `.venv` 자동 생성, 컨테이너에선 시스템 site-packages 직설치 (§8) |
 | `www/fastapi_sample/` | uvicorn 전용. FastAPI 최신, uv-managed | §0.5.9 도입 — uvicorn 스택의 동작 검증용 |
 | `www/flask_sample/` | gunicorn 또는 uwsgi 전용 (WSGI). Flask, uv-managed | §0.5.9 도입 — WSGI 스택의 비-Django 검증용 |
-| `www/php_sample/` | php-fpm (7.3 또는 8.4) 용. 단일 `index.php` | 컨테이너 내부 마운트 `/var/www/html` |
+| `www/php_sample/` | php-fpm (7.3 또는 8.4) 용. 단일 `index.php` | 컨테이너 내부 경로 `/www/php_sample` (`../../../www:/www` 마운트) |
 | `www/certbot/` | 컨테이너 안 ACME webroot 표준 위치 | `.gitkeep` 만 두어 빈 디렉토리 추적. 도메인 발급 시 nginx conf 의 `/.well-known/acme-challenge/` 가 이 경로로 alias |
 
 기존 사용 흐름은 그대로:
@@ -395,7 +429,7 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
 - This step requires running http nginx server
 
-  1. Run nginx_http_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/<service>/conf.d/. Generated filenames always end with "_http" (e.g. <name>_gunicorn_ng_http.conf).
+  1. Run nginx_http_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/nginx/<service>/conf.d/. Generated filenames always end with "_http" (e.g. <name>_gunicorn_ng_http.conf).
 
   2. Please edit compose/web-service/<service>/docker-compose directly and run it according to the service you want to use.
 
@@ -405,21 +439,21 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
   5. The script/letsencrypt.sh shell script file is linked per volume. This allows users to access script files directly from the nginx container.
 
-  6. Run script/letsencrypt.sh and enter information such as web root, domain, and email. This script automatically creates an SSL key for your volume if it does not exist.
+  6. Run /script/letsencrypt.sh and enter the domain(s) and email. The ACME webroot is fixed to /www/certbot (every generated conf serves /.well-known/acme-challenge/ from it), so there is no webroot input.
 
   7. If you entered all keys correctly, use the exit command to exit the container.
 
   8. Now we need to create a conf file for https and delete the existing file.
 
-  9. Run nginx_https_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/<service>/conf.d/.
+  9. Run nginx_https_conf.sh located in config/web-server/nginx/<service>. Create a conf file for each domain under config/web-server/nginx/<service>/conf.d/.
 
-  10. Users must remove the http conf file from config/web-server/<service>/conf.d/.
+  10. Users must remove the http conf file from config/web-server/nginx/<service>/conf.d/.
 
   11. Run the “docker-compose restart” command in the compose folder. You can also use the “docker-compose stop” and “docker-compose start” commands in the compose folder. Do not use the "docker-compose down" command. Related configuration files may be deleted.
 
-  12. Certbot 갱신 cron 은 컨테이너 안에 내장되어 있습니다 (`docker/<stack>/entrypoint-with-cron.sh` 가 부팅 시 등록). 호스트에서 별도 `crontab` 설정 / 외부 스크립트 실행은 **불필요** 합니다. 갱신 시 `--deploy-hook "nginx -t && nginx -s reload"` 로 인증서가 바뀐 경우에만 nginx 가 graceful reload 합니다. 자세한 cron 진실 소스는 §3 "갱신 cron 의 진실 소스" 참조.
+  12. Certbot 갱신 cron 은 nginx 이미지 안에 내장되어 있습니다 (`docker/nginx/Dockerfile` 이 빌드 시 crontab 에 등록, 컨테이너 기동 시 cron 데몬 시작). 호스트에서 별도 `crontab` 설정 / 외부 스크립트 실행은 **불필요** 합니다. 갱신 시 `--deploy-hook "nginx -t && nginx -s reload"` 로 인증서가 바뀐 경우에만 nginx 가 graceful reload 합니다. 자세한 cron 진실 소스는 §3 "갱신 cron 의 진실 소스" 참조.
 
-  13. 컨테이너 내부에서 cron 등록 확인: `docker compose exec webserver crontab -l` 또는 `docker compose exec gunicorn-app crontab -l` (각 stack 의 entrypoint 가 등록).
+  13. 컨테이너 내부에서 cron 등록 확인: `docker compose exec webserver crontab -l` (certbot·ngxblocker 갱신). 앱 컨테이너의 `docker/<stack>/entrypoint-with-cron.sh` 는 logrotate cron 만 담당합니다.
 
 ## 운영자 가이드 (Operator's Manual)
 
@@ -437,13 +471,13 @@ curl -H "Host: localhost" http://localhost/    # → 200
 | PHP 8.4 (current) | `php:8.4-fpm-bookworm` (공식) | `docker/php-fpm/Dockerfile-8.4`. 단일 경로(`/usr/local/etc/php{,-fpm.d}/...`). php.ini 는 8.x 호환으로 패치됨 (`config/app-server/php-8.4/php_ini/php.ini`) |
 | Redis | `redis:7.4-alpine` + `protected-mode yes` + `requirepass` | Alpine 베이스로 이미지 100 MB 이하. 인증 강제 (§0.5.2) |
 | Flower | `mher/flower:2.0.1` | `master` 태그는 재현성 없으므로 금지. `FLOWER_BASIC_AUTH` 필수 |
-| 이미지 태그 (이 프로젝트가 빌드) | `devspoon-py-app:latest`, `devspoon-uwsgi-app:latest`, `devspoon-nginx:latest`, `devspoon-php-app:{7.3,8.4}` | compose `image:` 명시로 스택 / 서비스 간 재사용 (§0.5.4) |
+| 이미지 태그 (이 프로젝트가 빌드) | `devspoon-py-app:latest`, `devspoon-uwsgi-app:latest`, `devspoon-nginx:latest`, `devspoon-php-app:{7.3,8.4}` | compose `image:` 명시로 스택 / 서비스 간 재사용 (§0.5.4). 접두어 `devspoon` 은 `IMAGE_NAMESPACE`(기본 `devspoon`) — 테스트 하네스는 `devspoon-it` (§0.6.4) |
 
 #### 왜 "수동 stop/start" 가 기본 정책인가?
 - 본 프로젝트는 단일 서버(8c/8g) 운용을 1차 타깃으로 하며, 로드밸런서/오케스트레이터(K8s)가 없는 환경에서 가장 단순·안전한 배포 모델.
 - 무중단(graceful HUP reload) 을 포기한 대신 **메모리 절감** 을 우선:
-  - gunicorn `preload_app=True` (Copy-on-Write로 워커 메모리 20-40% 감소)
-  - uwsgi `lazy-apps=false` (마스터에서 1회 로드 후 fork)
+  - gunicorn `preload_app=True` (`gunicorn.conf.py`, `uvicorn.conf.py` — 마스터에서 1회 로드 후 fork, Copy-on-Write 공유)
+  - uwsgi 는 `lazy-apps = true` (`uwsgi.ini` — 워커마다 fork 후 앱 로드. CoW 절감 대신 fork 전 공유 상태 회피)
 - 무중단이 필요해지는 시점은 별도 PR/마이그레이션으로 처리하는 것을 권장.
 
 ---
@@ -454,9 +488,9 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
 #### 0.5.1 자격증명 외부화 — `.env` 와 `.env-example`
 
-- 6개 스택(daphne / gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 각각의 `compose/web-service/<stack>/.env` 는 **git 추적 대상에서 제외**. 동일 폴더의 `.env-example` 만 추적되며, 신규 환경은 `cp .env-example .env` 후 자격증명을 채워 시작.
-- `.gitignore` 의 패턴: `**/.env` (ignore) + `!**/.env-example` (예외 추적). 기존에 추적되던 5개 `.env` 는 `git rm --cached` 로 untrack 됨 (작업트리 보존).
-- compose 의 `${VAR:?error}` 검증: 자격증명 키(`REDIS_PASSWORD` / `FLOWER_ID` / `FLOWER_PWD`) 가 미설정/빈문자열이면 `docker compose up` 단계에서 즉시 fail-fast → "비밀번호 빈값 기동" 사고 차단.
+- 6개 스택(daphne / gunicorn / uvicorn / uwsgi / php-7.3 / php-8.4) 각각의 `compose/web-service/<stack>/.env` 는 **git 추적 대상에서 제외**. 동일 폴더의 `.env-example` 만 추적되며, 신규 환경은 `cp .env-example .env` 후 `ensure_env_secrets` 로 비밀값을 생성해 시작 (§0.6.1).
+- `.gitignore` 의 패턴: `**/.env` (ignore) — `.env-example` 은 이 패턴에 매칭되지 않아 추적된다. 기존에 추적되던 5개 `.env` 는 `git rm --cached` 로 untrack 됨 (작업트리 보존).
+- compose 의 `${VAR:?error}` 검증: 자격증명 키(`DJANGO_SECRET_KEY`(Python 스택) / `REDIS_PASSWORD` / `FLOWER_ID` / `FLOWER_PWD`) 가 미설정/빈문자열이면 `docker compose up` 단계에서 즉시 fail-fast → "비밀번호 빈값 기동" 사고 차단.
 - 로그 옵션 키(`LOG_DRIVER` / `LOG_OPT_MAXF` / `LOG_OPT_MAXS`) 는 `${VAR:-default}` 로 fallback 처리되어 `.env` 누락에도 무영향.
 
 #### 0.5.2 Redis 인증 강화 (`protected-mode yes` + `requirepass`)
@@ -518,18 +552,96 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
 ---
 
+### 0.6. 2026-09 Django 6 업그레이드 — 운영자 필수 변경
+
+#### 0.6.1 `.env` 비밀값 생성 (최초 설정 · 업그레이드)
+
+`.env-example` 의 비밀값(Python 스택 `DJANGO_SECRET_KEY` · `REDIS_PASSWORD` · `FLOWER_PWD`, php 스택 `REDIS_PASSWORD`)은 **빈 값**입니다. compose 가 `${VAR:?}` 로 요구하므로 비워 둔 채로는 기동이 거부됩니다. 저장소 루트에서 스택마다 한 번:
+
+```bash
+cp compose/web-service/nginx_gunicorn/.env-example compose/web-service/nginx_gunicorn/.env
+bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-service/nginx_gunicorn/.env'
+```
+
+- 값이 비었거나 옛 `CHANGE_ME_*` 인 비밀 키만 `openssl rand -hex` 무작위 값으로 채웁니다(`DJANGO_SECRET_KEY` 100 hex, 그 외 64 hex). 이미 값이 있는 키는 바꾸지 않습니다.
+- 같은 폴더의 임시 파일에 쓴 뒤 교체하며, 값을 생성했으면 권한을 600 으로 좁힙니다(더 엄격하면 유지). openssl 이 없거나 실패하면 `FAIL` 로 끝나고 `.env` 내용은 바뀌지 않습니다.
+- `FLOWER_ID` 는 비밀이 아니라 채우지 않습니다 — `CHANGE_ME_FLOWER_USER` 를 직접 바꾸세요.
+- 호스트에서 `manage.py` 를 직접 실행할 때만 `www/django_sample/secrets.json` 이 필요합니다: `bash -c '. script/lib/django_secrets.sh && ensure_django_secrets'` (없을 때만 생성, 600). 컨테이너는 `DJANGO_SECRET_KEY` 환경변수를 씁니다.
+
+> **업그레이드 노트 — 이전 버전에서 쓰던 `.env` 를 유지하는 경우**: 옛 `.env` 에는 `DJANGO_SECRET_KEY` 줄이 없거나 `CHANGE_ME_*` 값이 남아 있을 수 있습니다. 위 헬퍼를 같은 `.env` 에 한 번 실행하면 같은 폴더 `docker-compose*.yml` 이 `:?` 로 요구하는 비밀 키(이름에 SECRET·PASSWORD·PWD 포함) 중 없는 키를 끝에 추가하고 `CHANGE_ME_*` 를 교체하며, 기존 값은 보존하고 권한을 600 으로 맞춥니다. `KEY=""` 처럼 따옴표로 둘러싼 빈 값은 채우지 않으니 먼저 `KEY=` 로 고치세요.
+
+#### 0.6.2 SQLite 데이터 위치 — named volume `/data`
+
+Python 스택(gunicorn · uvicorn · uwsgi · daphne)의 SQLite 는 호스트 `www/<PROJECT_DIR>/db.sqlite3` 가 아니라 compose named volume `app-data` 의 **`/data/<PROJECT_DIR>.sqlite3`** (`SQLITE_PATH` 환경변수)에 저장됩니다. 컨테이너는 이 볼륨과 로그 디렉터리만 www-data 소유로 맞추고, 호스트 소스 트리(`/www`)의 소유권은 바꾸지 않습니다. `SQLITE_PATH` 가 없는 호스트 `manage.py` 실행은 여전히 `www/<PROJECT_DIR>/db.sqlite3` 를 씁니다.
+
+**기존 DB 이관** (호스트 `db.sqlite3` 를 계속 쓰려면 — gunicorn 스택 예, celery 프로파일은 이관 후 기동):
+
+```bash
+cd compose/web-service/nginx_gunicorn
+docker compose up -d        # app-data 볼륨 생성 (빈 DB 로 migrate 됨)
+docker compose cp ../../../www/django_sample/db.sqlite3 gunicorn-app:/data/django_sample.sqlite3
+docker compose exec gunicorn-app chown www-data:www-data /data/django_sample.sqlite3
+docker compose restart      # 기동 명령이 다시 돌며 이관한 DB 에 미적용 migrate 반영
+```
+
+> ⚠️ **`docker compose down -v` 는 `app-data` 볼륨, 즉 SQLite DB 를 삭제합니다.** 컨테이너만 내리려면 `docker compose stop` (또는 `-v` 없는 `down`)을 쓰세요. 백업: `docker compose cp gunicorn-app:/data/django_sample.sqlite3 ./backup.sqlite3`.
+
+#### 0.6.3 기동 순서 — app 이 DB 를 초기화한 뒤 celery · beat
+
+- 각 스택의 app 서비스만 서버 기동 전에 DB 를 1회 초기화합니다: `manage.py` 가 있으면 `python manage.py migrate --noinput`, 없으면(flask/fastapi) 프로젝트의 `prestart.sh`. 새 비Django 프로젝트의 테이블 생성 등은 `www/<PROJECT_DIR>/prestart.sh` 에 둡니다.
+- `celery` · `celery-beat` 는 `depends_on: <app>: condition: service_healthy` 라 app 이 healthy 가 된 뒤 기동합니다 — 동시 migrate 경쟁이 없습니다. `flower` 는 `celery-beat` 기동 뒤.
+
+#### 0.6.4 이미지 이름 · 빌드
+
+- 이미지 이름은 `${IMAGE_NAMESPACE:-devspoon}-nginx:latest` 형식입니다. 기본값이면 기존과 같은 `devspoon-*` 태그이고, 테스트 하네스(run-ci · 검증기 · `verify-ngxblocker.sh`)는 `IMAGE_NAMESPACE=devspoon-it` 로 빌드해 운영 태그를 덮어쓰지 않습니다.
+- 앱 이미지(`py-app` · `uwsgi-app`)의 사전 설치 패키지는 `www/django_sample/uv.lock` 에서 도출됩니다. compose 는 `build.additional_contexts: lock: ../../../www/django_sample` 로 이를 자동 전달하므로 **Docker Compose ≥ 2.17** 이 필요합니다 (`docker compose version`).
+- Compose 가 2.17 미만이거나 `docker build` 를 직접 쓸 때는 추가 빌드 컨텍스트를 명시합니다(저장소 루트, BuildKit):
+
+  ```bash
+  docker build --build-context lock=www/django_sample -t devspoon-py-app:latest docker/gunicorn/
+  docker build --build-context lock=www/django_sample -t devspoon-uwsgi-app:latest docker/uwsgi/
+  ```
+
+  빠뜨리면 빌드가 `"/pyproject.toml": not found` 로 실패합니다.
+
+#### 0.6.5 nginx 설정
+
+- **rate-limit — 봇만 제한**: 공용 `nginx.conf` http 블록이 `limit_conn_zone $bot_iplimit zone=addr:50m;` / `limit_req_zone $bot_iplimit zone=flood:50m rate=90r/s;` 를 정의합니다. `$bot_iplimit` 은 `globalblacklist.conf` 가 봇으로 판정한 요청에만 IP 가 채워지므로 `bots.d/ddos.conf` 의 제한은 봇 흐름에만 걸리고 정상 사용자는 영향이 없습니다. 업스트림 `botblocker-nginx-settings.conf` 는 include 하지 않습니다(그 파일의 해시 지시어는 nginx.conf 로 옮김).
+- **`proxy.d`**: nginx.conf 가 conf.d 앞에서 `include /etc/nginx/proxy.d/*/*.conf;` 를 읽습니다. 이 저장소의 compose 는 `proxy.d` 를 마운트하지 않아 no-op 이며, 형제 저장소가 추가 reverse-proxy 서비스를 `/etc/nginx/proxy.d/<svc>/` 로 마운트할 때 쓰입니다.
+- **WebSocket**: nginx.conf 가 `map $http_upgrade $connection_upgrade` 를 정의합니다 (Daphne 절 예시).
+- **real_ip**: 4종 nginx.conf 에 CloudFlare / AWS ALB / 사내 LB 예시 주석 블록만 있고 기본 비활성입니다 (OPS-GUIDE-006 §2).
+- **HTTPS 템플릿**(`sample_nginx_https.conf`): HSTS 는 `max-age=63072000; includeSubDomains` — `preload` 는 기본 제거(hstspreload.org 등록을 결정한 뒤에만 추가, OPS-GUIDE-002 §2). OCSP stapling 은 기본 off (Let's Encrypt 인증서에 OCSP 응답기 URL 이 없음). 세션 캐시 `shared:SSL:10m`.
+
+#### 0.6.6 Django 설정 · Flower
+
+- `DJANGO_DEBUG`(기본 `0`) · `DJANGO_ALLOWED_HOSTS`(gunicorn 기본 `localhost,www.localhost,127.0.0.1`)를 `.env` 로 제어하며 app · celery · beat 에 전달됩니다. 도메인을 연결하면 `DJANGO_ALLOWED_HOSTS` 에 추가하고, `DJANGO_DEBUG=1` 은 로컬 개발에서만 쓰세요.
+- Flower 는 **`127.0.0.1:5555` 에만 바인드**됩니다. 원격 접근은 SSH 터널: `ssh -L 5555:127.0.0.1:5555 <host>` 후 로컬 브라우저에서 `http://127.0.0.1:5555`.
+
+#### 0.6.7 테스트 하네스 변수
+
+| 변수 | 기본 | 용도 |
+|---|---|---|
+| `IMAGE_NAMESPACE` | `devspoon` (하네스 `devspoon-it`) | 이미지 이름 접두어 |
+| `S5_DOMAIN` | `s5-https.test` | `s5_https.sh` 의 테스트 HTTPS 도메인 |
+| `S5_WAIT` | `20` | `s5_https.sh` 가 reload 뒤 HTTPS 응답을 기다리는 최대 초 |
+| `STABLE_WINDOW` | `15` | 검증기가 컨테이너 running · RestartCount 불변을 관측하는 안정화 창(초) |
+
+`bash script/ci/run-ci.sh` 가 10단계(preflight → prereq·로그 디렉터리 → nginx conf 생성기 → compose 검증 → 이미지 빌드 → 정적 회귀(s6) → healthcheck → 스택 매트릭스 → 샘플 프로젝트 → 스크립트 로그)를 순서대로 실행합니다.
+
+---
+
 ### 1. App-server 워커/풀 산정 근거
 
 8 core / 8 GB 기준 메모리 가용량 계산: `8 GB - (OS + nginx + redis + 헤드룸 ≈ 2 GB) = 약 6 GB`.
 
 | 서비스 | 핵심 수치 | 산정 근거 |
 |---|---|---|
-| **gunicorn (Django sync)** | `workers=9, threads=4` | (cores + 1) 보수치. 워커당 ~250 MB × 9 ≈ 2.25 GB. threads=4 로 DB I/O 대기 흡수 → 동시 슬롯 36 |
-| **uvicorn (FastAPI ASGI)** | `workers=8` (UvicornWorker) | 비동기 워커는 단일 이벤트 루프로 다수 동시 처리. 1 worker / core. 워커당 ~600 MB × 8 ≈ 4.8 GB |
-| **uwsgi (Django)** | `processes=8, threads=4` | sync 워커. `harakiri=60`, `reload-on-rss=800MB` (메모리 누수 자동 복구) |
+| **gunicorn (Django sync)** | `workers=4, threads=2` (`gunicorn.conf.py`) | 워커당 ~250 MB 가정 시 × 4 ≈ 1 GB. threads=2 로 DB I/O 대기 흡수 → 동시 슬롯 8. `timeout=60`, `max_requests=1000`, `preload_app=True` |
+| **uvicorn (FastAPI ASGI)** | `workers=8` (UvicornWorker, `uvicorn.conf.py` — compose 가 사용) | 비동기 워커는 단일 이벤트 루프로 다수 동시 처리. 1 worker / core. 워커당 ~600 MB 가정 시 × 8 ≈ 4.8 GB. 대안 `gunicorn_uvicorn.conf.py` 는 `workers=4` |
+| **uwsgi (Django)** | `processes=4` (threads 옵션 없음, `enable-threads=true`) | sync 워커. `harakiri=60`, `lazy-apps=true`. `reload-on-rss` 미설정 — 메모리 누수 자동 재기동이 필요하면 추가 |
 | **daphne (ASGI WS)** | 단일 프로세스 | daphne 는 멀티프로세스 미지원. 동시 websocket 수천은 단일 인스턴스로 가능. 더 필요 시 nginx upstream + 다중 컨테이너 |
 | **celery worker** | `--concurrency=8 --max-tasks-per-child=2000` | prefork 풀, 코어 매칭. 메모리 누수 방어 위해 2000 태스크마다 워커 재기동 |
-| **php-fpm** (7.3/8.4 공용) | `pm.max_children=40, start=8, min_spare=8, max_spare=24` | 워커당 ~80 MB × 40 ≈ 3.2 GB. `request_terminate_timeout=60s` 로 hang 방지. 두 버전 모두 동일 pool 정책을 적용 — 각 버전 폴더(`config/app-server/php-7.3` / `php-8.4`)의 `pool.d/sample_php.conf` 내용은 동일하며, 차이는 php.ini 의 8.x 호환 패치뿐 |
+| **php-fpm** (7.3/8.4 공용) | `pm = dynamic`, `pm.max_children=50, start=5, min_spare=5, max_spare=35` | 워커당 ~80 MB 가정 시 × 50 ≈ 4 GB. `request_terminate_timeout=60s` 로 hang 방지. 두 버전 모두 동일 pool 정책 — 파일은 각 버전 폴더의 `config/app-server/php-{7.3,8.4}/pool.d/www.conf`, 차이는 php.ini 의 8.x 호환 패치뿐 |
 
 > **주의 — `preload_app=True` 의 부수 효과**:
 > - DB 커넥션을 모듈 import 시점에 열면 fork 후 워커들이 동일 소켓을 공유 → 충돌 가능.
@@ -797,19 +909,19 @@ docker compose logs --tail=100 -f <service>-app
 curl -fsS https://<domain>/health || echo "FAIL"
 ```
 
-> **`docker compose down` 은 사용하지 말 것** — 일부 네트워크/볼륨 메타가 같이 제거되어 SSL/redis 데이터 재구성 비용이 발생할 수 있습니다.
+> **`docker compose down` 은 사용하지 말 것** — 일부 네트워크/볼륨 메타가 같이 제거되어 SSL/redis 데이터 재구성 비용이 발생할 수 있습니다. 특히 **`docker compose down -v` 는 named volume `app-data`(SQLite DB, §0.6.2)를 삭제**합니다.
 
 ---
 
 ### 7. 보안 / 운영 체크리스트
 
-- [ ] `.env` 의 비밀값 (`REDIS_PASSWORD`, `FLOWER_ID`, `FLOWER_PWD`) 은 git 에 커밋하지 않을 것. `.gitignore` 의 `**/.env` + `!**/.env-example` 패턴 확인 (§0.5.1). `CELERY_BROKER_URL` 은 .env 에 없음 — REDIS_PASSWORD 로부터 compose 가 합성 (§0.5.3).
-- [ ] `flower(5555)` 포트는 외부 노출 시 nginx basic auth 또는 IP allowlist 적용 (`FLOWER_BASIC_AUTH` 는 이미 강제되어 있지만 추가 레이어 권장). `redis-stats` 는 제거되었으므로 별도 모니터링 필요 시 RedisInsight/redis_exporter 도입 (§0.5.7).
+- [ ] `.env` 의 비밀값 (`DJANGO_SECRET_KEY`, `REDIS_PASSWORD`, `FLOWER_ID`, `FLOWER_PWD`) 은 git 에 커밋하지 않을 것. `.gitignore` 의 `**/.env` 패턴 확인 (§0.5.1). 비밀값은 `ensure_env_secrets` 로 생성 (§0.6.1). `CELERY_BROKER_URL` 은 .env 에 없음 — REDIS_PASSWORD 로부터 compose 가 합성 (§0.5.3).
+- [ ] `flower` 는 `127.0.0.1:5555` 에만 바인드 — 원격 접근은 SSH 터널(`ssh -L 5555:127.0.0.1:5555 <host>`)로만 하고 외부 바인드로 바꾸지 말 것 (`FLOWER_BASIC_AUTH` 는 강제되지만 단일 방어선, §0.6.6). `redis-stats` 는 제거되었으므로 별도 모니터링 필요 시 RedisInsight/redis_exporter 도입 (§0.5.7).
 - [ ] redis 는 컨테이너 내부 네트워크 전용(외부 포트 미노출 상태가 기본 — 유지 권장). `protected-mode yes` + `requirepass` 가 강제되어 동일 네트워크 컨테이너도 인증 필요 (§0.5.2).
 - [ ] Python 베이스 이미지 빌드 시 `docker build --build-arg PYTHON_SHA256=<official>` 또는 ARG default 값(`docker/gunicorn/Dockerfile`) 이 python.org 공식 해시와 일치하는지 분기 1회 재확인 (§0.5.4).
 - [ ] `docker/nginx/Dockerfile` 의 cron 시간(매주 월요일 05:00)이 트래픽 한산 시간대인지 운영 환경 기준으로 재검토.
 - [ ] 로그 디스크 모니터링 — `df -h log/` 가 80% 도달 시 알림.
-- [ ] `ufw` / 클라우드 방화벽에서 80/tcp, 443/tcp 만 외부 노출, 그 외 모든 포트 차단 (flower 5555 는 내부망에서만).
+- [ ] `ufw` / 클라우드 방화벽에서 80/tcp, 443/tcp 만 외부 노출, 그 외 모든 포트 차단 (flower 5555 는 호스트 로컬 바인드라 방화벽 개방 불필요).
 - [ ] OS 시간 동기화(`chrony` 또는 `systemd-timesyncd`) — certbot/cron/로그 타임스탬프 정합성.
 
 ---
@@ -960,7 +1072,7 @@ bash script/test/verify-ngxblocker.sh
 
 이 스크립트는 read-only 가 아닙니다. 다음 순서로 환경을 만집니다:
 
-1. **gunicorn 스택을 `docker compose down -v --remove-orphans`** 후 `up -d webserver redis` — 검증을 위해 깨끗한 상태에서 시작. 기존에 다른 gunicorn 컨테이너가 떠 있었다면 종료되며, 볼륨도 함께 제거됩니다.
+1. **전용 compose 프로젝트(`-p devspoon-ngxb-test`)와 임시 env-file(`IMAGE_NAMESPACE=devspoon-it`)로** gunicorn 스택의 `webserver redis` 를 기동하고, 종료 시 그 프로젝트만 `down -v --remove-orphans` 로 정리합니다 — 운영 `.env` 와 운영 프로젝트의 `app-data` 볼륨은 건드리지 않습니다. 단 `container_name` 과 호스트 80/443 이 고정이라 운영 gunicorn 스택이 떠 있으면 충돌하므로 먼저 `docker compose stop` 하세요.
 2. **컨테이너 안에 임시 conf** (`/etc/nginx/conf.d/zz_blocker_test.conf`) **추가** — `Host: blocker.test` 매칭 server 블록. 스크립트 종료 직전에 `Cleanup` 단계에서 제거 + reload 합니다.
 3. **임시 로그 파일** (`/log/nginx/blocker_test_access.log`, `blocker_test_error.log`) — 호스트 볼륨에 남습니다 (필요 시 수동 정리).
 4. **수동 `update-ngxblocker -c /etc/nginx` 호출** — globalblacklist.conf 를 최신화하며 mtime 이 갱신됩니다.
@@ -981,7 +1093,7 @@ bash script/test/verify-ngxblocker.sh
 
 | Step | 무엇을 보는가 |
 |---|---|
-| **A** 스택 기동 | `docker compose down -v` → `up -d webserver redis`, `nginx -t` 통과 |
+| **A** 스택 기동 | 전용 프로젝트로 `up -d webserver redis`, `nginx -t` 통과 (종료 시 그 프로젝트만 `down -v`) |
 | **B** 다운로드 산출물 | `globalblacklist.conf` ≥ 400 KB, 1000+ 봇 regex 패턴, 알려진 봇 8 종(MJ12, Ahrefs, Semrush, DotBot, BLEX, Scrapy, nikto, sqlmap) 포함, `bots.d/` 9 파일 모두 존재 |
 | **C** nginx 통합 | `nginx.conf` 가 `globalblacklist.conf` 를 1회 include, `$bad_bot` 변수 정의, `nginx -t` syntax/test OK, master + worker ≥ 2 |
 | **D** cron / 갱신 | crontab 에 `update-ngxblocker -c /etc/nginx` 라인 등록, cron 데몬 실행, 수동 update 실행 후 파일 정상 + reload 후 워커 정상 |
@@ -1024,18 +1136,17 @@ bash script/test/verify-ngxblocker.sh
 | 보조 | `ssl_diag.sh` | dhparam 경로/내용 검사 + 호스트 백업본 ↔ 컨테이너 본 일치 검사 | §3 dhparam 영속화 절의 자동화 검증 |
 | 보조 | `verify_block.sh` | 봇/스캐너 차단 동작 검사 (§10.2 의 verify-ngxblocker 와 영역 일부 중복) | |
 | 보조 | `verify_compose_yml.sh` | 6 스택 docker-compose.yml 의 dhparam 마운트 / 안티패턴 (ssl/certs 마운트, ulimits 미정의) 정적 검사 | 정적 회귀 |
-| 보조 | `verify_conf_generators.sh` | 4 스택 × HTTP+HTTPS generator 산출물 검증 | 정적 회귀 |
 | 보조 | `verify_dhparam_lifecycle.sh` / `verify_dhparam_host_wins.sh` | dhparam A/B/C 단계 백업·복원·호스트 우선 검증 (PORT 랜덤화 + 폴링 강화) | §3 dhparam |
-| 보조 | `verify_healthcheck.sh` | 6 스택 healthcheck 정적 12 PASS + 런타임 옵션 | §0.5 healthcheck |
+| 보조 | `verify_healthcheck.sh` | 6 스택 compose 의 app/webserver healthcheck · `depends_on: service_healthy` 정적 검증 + 한 스택 런타임(기본 nginx_php-8.4, run-ci 는 정적만) | §0.5 healthcheck |
 | 보조 | `verify_nginx_standalone.sh` | 실제 nginx 컨테이너 기동 + 전체 마운트 + `docker cp` 로 종료 컨테이너에서도 dhparam 추출 | dhparam 통합 |
-| **통합** | `verify_integration_<stack>.sh` × 6 | **6 스택 풀스택 통합 verifier** — `.env` 자동 셋업 + `docker compose up -d` + healthcheck 대기 + `curl Host: localhost` HTTP 200 + gzip Vary + 워커 권한 강하 (master root + workers www-data) + dhparam sha256 정합 검증 + 자동 cleanup | gunicorn / uvicorn / uwsgi / daphne / php73 / php84 |
+| **통합** | `verify_integration_<stack>.sh` × 6 | **6 스택 풀스택 통합 verifier** — `compose up --wait`, HTTP 200 (`Host: localhost`), dotfile 403, 봇 UA 차단, 정상 UA 고속 요청 무차단, app healthy · 안정화 창(`STABLE_WINDOW`), Python 스택 celery · beat 기동 · 브로커 ping, DEBUG off 등 — 스택별 단언은 각 스크립트의 `check` 줄 참조 | gunicorn / uvicorn / uwsgi / daphne / php73 / php84 |
 | 보조 | `celery_diag.sh` / `check_cgi.sh` / `check_cgi2.sh` / `check_excode.sh` / `inspect_orphans.sh` / `sim_exit.sh` | 개별 진단 보조 | 단발성 |
 
 #### 실행 방식
 
 ```bash
 # 단계별 실행 (s0 → s2 → s3 → s5 → s6 순)
-cd /mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web
+cd /path/to/devspoon-web     # 리포지토리 루트
 bash script/test_run/s0_prereq.sh
 
 # 단일 스택 smoke (gunicorn)
@@ -1063,7 +1174,7 @@ bash script/test_run/verify_integration_php84.sh
 
 #### 주의 — 환경 가정
 
-- 모든 스크립트는 `ROOT="/mnt/c/Users/rnd15/Documents/project/github/mig/devspoon-web"` 를 하드코딩하고 있습니다. 다른 경로에서 사용하려면 첫 줄의 `ROOT=` 변수를 수정하세요.
+- 스크립트는 `ROOT` 를 자기 위치(`script/test_run/../..`)에서 계산하므로 클론 경로와 무관하게 실행됩니다.
 - `s5_https.sh` 는 **도메인이 없는 로컬 환경 가정** — certbot 발급은 시도하지 않고 dhparam / nginx https 샘플 / 경로 정합성만 검증합니다.
 - `s3_stack_smoke.sh` 는 컨테이너를 띄웠다 내리므로 운영 호스트에서는 정비 시간대에만 실행.
 - **WSL2 호스트인 경우** `script/test_run/*.sh` 실행 직전에 `chmod 644 compose/web-service/*/redis/conf/redis.conf` (및 기타 bind-mount 대상) 권한을 재확인해야 할 수 있습니다. WSL 의 기본 `fmask=177` 정책으로 인해 0600 으로 잘리면 컨테이너 내부 redis 가 conf 를 읽지 못합니다. 영구 회피책은 §11 (WSL2 호스트 운영 가이드) 의 `/etc/wsl.conf` 설정을 참조.
@@ -1072,7 +1183,7 @@ bash script/test_run/verify_integration_php84.sh
 
 ### 11. WSL2 호스트 운영 가이드
 
-본 프로젝트는 **dev 환경에서 Windows + WSL2 (Ubuntu)** 위에 docker 를 띄우는 시나리오를 광범위하게 가정합니다 (test_run 스크립트의 `ROOT=/mnt/c/...` 하드코딩이 그 흔적). WSL2 의 기본 mount 옵션이 컨테이너 bind-mount 경로의 권한을 잘라 운영을 깨뜨리는 케이스가 반복되므로 이 절에서 정리합니다.
+본 프로젝트는 **dev 환경에서 Windows + WSL2 (Ubuntu)** 위에 docker 를 띄우는 시나리오를 광범위하게 가정합니다. WSL2 의 기본 mount 옵션이 컨테이너 bind-mount 경로의 권한을 잘라 운영을 깨뜨리는 케이스가 반복되므로 이 절에서 정리합니다.
 
 > 운영(production) 환경은 가능하면 **Linux native 또는 클라우드 VM**을 사용하세요. WSL2 는 dev / 검증 용도입니다.
 
@@ -1121,7 +1232,7 @@ sudo rm compose/web-service/nginx_gunicorn/ssl/dhparam/dhparam.pem
 
 #### 11.3. WSL `/mnt/c` 성능
 
-`/mnt/c` 의 9P/Plan9 마운트는 native ext4 대비 IO 가 ~10x 느립니다. dev 시 컨테이너 build 가 길어지는 주된 원인이며, 운영 가이드라기보다 dev 생산성 팁입니다 — 가능하면 프로젝트를 `~/projects/devspoon-web` (WSL2 native ext4) 로 옮기고 hardcoded ROOT 만 갱신.
+`/mnt/c` 의 9P/Plan9 마운트는 native ext4 대비 IO 가 ~10x 느립니다. dev 시 컨테이너 build 가 길어지는 주된 원인이며, 운영 가이드라기보다 dev 생산성 팁입니다 — 가능하면 프로젝트를 `~/projects/devspoon-web` (WSL2 native ext4) 로 옮기세요 (스크립트는 ROOT 를 자동 계산).
 
 #### 11.4. healthcheck timing 과 WSL
 
