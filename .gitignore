@@ -36,6 +36,8 @@ compose/web_service/nginx_uwsgi/redis/
 #   (placeholder 만 들어가도록 정비된 상태이므로 미실행 시에도 즉시 leak 위험은 없음)
 # ---------------------------------------------------------------------------
 **/.env
+# ensure_env_secrets 원자 교체 임시 파일(mktemp .env.XXXXXX) — 강제 종료로 남아도 추적 안 함 (.env.example 은 7자라 비매칭)
+**/.env.??????
 !**/.env.example
 
 # Python / uv virtualenv (컨테이너가 mount 된 /www 안에 생성)

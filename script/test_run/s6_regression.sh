@@ -344,8 +344,8 @@ if grep -q 'ensure_env_secrets()' script/lib/django_secrets.sh; then
     mkdir -p "$tmp/perm" "$tmp/intr"
     printf 'DJANGO_SECRET_KEY=\n' > "$tmp/perm/.env"; chmod 644 "$tmp/perm/.env"
     printf 'DJANGO_SECRET_KEY=\n' > "$tmp/intr/.env"; is=$(sha256sum < "$tmp/intr/.env")
-    ( . script/lib/django_secrets.sh
-      chmod() { command chmod "$@"; stat -c %a "$tmp"/perm/.env.?????? >> "$tmp/perm.log" 2>/dev/null; }
+    ( . script/lib/django_secrets.sh; s6_pdir="$tmp/perm" s6_plog="$tmp/perm.log"   # 헬퍼 local tmp 와 겹치지 않는 이름(동적 스코프)
+      chmod() { command chmod "$@"; local r=$?; stat -c %a "$s6_pdir"/.env.?????? >> "$s6_plog" 2>/dev/null; return $r; }
       ensure_env_secrets "$tmp/perm/.env" >/dev/null 2>&1 )
     bash -c '. script/lib/django_secrets.sh; mv() { kill -TERM $$; }; ensure_env_secrets "$1"' _ "$tmp/intr/.env" >/dev/null 2>&1
     assert_eq   "6.24 임시 파일 권한 관측됨 (RV7-01)" "$( [ -s "$tmp/perm.log" ] && echo 1 || echo 0)" 1
