@@ -1280,7 +1280,6 @@ WSL2 에서는 컨테이너 시작 ~ healthcheck 첫 회 성공까지 시간이 
 <!-- Markdown link & img dfn's -->
 
 [devspoon.github.io]: https://github.com/devspoons/devspoon.github.io
-[wiki]: https://github.com/yourname/yourproject/wiki
 [youtube]: https://www.youtube.com/
 [inflearn]: https://www.inflearn.com/
 [bluebamus.github.io]: bluebamus.github.io
