@@ -30,16 +30,16 @@ compose/web_service/nginx_uwsgi/redis/
 # ---------------------------------------------------------------------------
 # .env — 자격증명 보호
 # - compose/web_service/*/.env 는 FLOWER_BASIC_AUTH, REDIS_PASSWORD 등을 포함
-# - 운영 자격증명은 git 추적 대상에서 제외하고, 동일 폴더의 .env.example 만 추적
+# - 운영 자격증명은 git 추적 대상에서 제외하고, 동일 폴더의 .env-example 만 추적
 # - 기존에 추적되던 파일을 untrack 하려면:
 #     git rm --cached compose/web_service/nginx_*/.env
 #   (placeholder 만 들어가도록 정비된 상태이므로 미실행 시에도 즉시 leak 위험은 없음)
 # ---------------------------------------------------------------------------
 **/.env
-# ensure_env_secrets 원자 교체 임시 파일(mktemp .env.XXXXXX) — 강제 종료로 남아도 추적 안 함 (.env.example 은 7자라 비매칭)
+# ensure_env_secrets 원자 교체 임시 파일(mktemp .env.XXXXXX) — 강제 종료로 남아도 추적 안 함 (.env-example 은 하이픈이라 비매칭)
 # 주의: 6글자 확장자 .env.* 를 추적해야 하면(예: .env.sample) 아래에 `!` 예외를 추가
 **/.env.??????
-!**/.env.example
+!**/.env-example
 
 # Python / uv virtualenv (컨테이너가 mount 된 /www 안에 생성)
 **/.venv/
