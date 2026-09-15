@@ -2,7 +2,7 @@
 name = "flask-sample"
 version = "0.1.0"
 description = "Flask REST API sample with Scalar OpenAPI docs (uv-managed)"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.14"
 dependencies = [
     "flask>=3.0.0",
     "flask-openapi3>=3.1.3",
@@ -14,3 +14,9 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+# compose `uv sync --extra <X>` 가 참조 — flask_sample 은 nginx_gunicorn / nginx_uwsgi 스택 전용 (README)
+[project.optional-dependencies]
+gunicorn = ["gunicorn>=21,<24"]
+uwsgi = ["uwsgi>=2.0,<3"]
+celery = ["celery[redis]>=5.3,<6"]

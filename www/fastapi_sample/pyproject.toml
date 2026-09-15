@@ -2,7 +2,7 @@
 name = "fastapi-sample"
 version = "0.1.0"
 description = "FastAPI REST API sample with Scalar OpenAPI docs (uv-managed)"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
@@ -17,3 +17,8 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+# compose `uv sync --extra <X>` 가 참조 — fastapi_sample 은 nginx_uvicorn 스택 전용 (README)
+[project.optional-dependencies]
+uvicorn = ["uvicorn[standard]>=0.30.0"]
+celery = ["celery[redis]>=5.3,<6"]
