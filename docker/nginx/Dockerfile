@@ -84,7 +84,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 #    - update-ngxblocker 가 /etc/nginx/conf.d/globalblacklist.conf 를 최신화
 #    - 다운로드 성공 시에만 nginx -t && nginx -s reload (잘못된 conf 가 prod 즉시 반영 차단)
 # ============================================================================
-RUN crontab -l 2>/dev/null | { cat; echo "0 */6 * * * /usr/local/sbin/update-ngxblocker -c /etc/nginx >> /log/nginx/ngxblocker_$(date +\%Y\%m).log 2>&1 && nginx -t && nginx -s reload"; } | crontab -
+RUN crontab -l 2>/dev/null | { cat; echo "0 */6 * * * /usr/local/sbin/update-ngxblocker -c /etc/nginx >> /log/nginx/ngxblocker_\$(date +\%Y\%m).log 2>&1 && nginx -t && nginx -s reload"; } | crontab -
 
 # ============================================================================
 # 5. 컨테이너 시작 시 cron 데몬 기동 + logrotate dropin sanitize
