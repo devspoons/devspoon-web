@@ -14,14 +14,6 @@ nginx_cache/
 # ssl files
 **/ssl/
 
-# data
-compose/web_service/nginx_gunicorn/ssl/
-compose/web_service/nginx_gunicorn/redis/
-compose/web_service/nginx_php/ssl/
-compose/web_service/nginx_php/redis/
-compose/web_service/nginx_uwsgi/ssl/
-compose/web_service/nginx_uwsgi/redis/
-
 # Redis 실시간 dump (테스트/운영 중 컨테이너가 생성) — 모든 스택 공통
 # .gitkeep 은 negation 으로 유지 (디렉터리 자체는 트리 상에 보존)
 **/redis/data/*
@@ -29,10 +21,10 @@ compose/web_service/nginx_uwsgi/redis/
 
 # ---------------------------------------------------------------------------
 # .env — 자격증명 보호
-# - compose/web_service/*/.env 는 FLOWER_BASIC_AUTH, REDIS_PASSWORD 등을 포함
+# - compose/web-service/*/.env 는 FLOWER_BASIC_AUTH, REDIS_PASSWORD 등을 포함
 # - 운영 자격증명은 git 추적 대상에서 제외하고, 동일 폴더의 .env-example 만 추적
 # - 기존에 추적되던 파일을 untrack 하려면:
-#     git rm --cached compose/web_service/nginx_*/.env
+#     git rm --cached compose/web-service/nginx_*/.env
 #   (placeholder 만 들어가도록 정비된 상태이므로 미실행 시에도 즉시 leak 위험은 없음)
 # ---------------------------------------------------------------------------
 **/.env
