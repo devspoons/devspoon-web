@@ -254,6 +254,16 @@ for s in gunicorn uvicorn uwsgi daphne; do
 done
 echo
 
+echo "===== 6.17b (형제) 검증기는 격리 래퍼 dc() 밖에서 docker compose 를 직접 호출하지 않는다 (SRV1-S-01, RV1-SEC-02) ====="
+for f in script/test_run/verify_integration_*.sh script/test_run/verify_healthcheck.sh script/test/verify-ngxblocker.sh; do
+    assert_zero "6.17b 래퍼 밖 docker compose 직접 호출 ($f)" "$(grep -vE '^[[:space:]]*#|^[[:space:]]*dc\(\)' "$f" | grep -c 'docker compose')"
+done
+echo
+
+echo "===== 6.17c (형제) pipefail 검증기에서 exec 출력을 grep -q 로 직접 파이프하지 않음 — SIGPIPE 로 exec 255 거짓 FAIL (CL-WP5-05-R3) ====="
+assert_zero "6.17c exec … | grep -q (verify_integration_*)" "$(grep -hE 'exec[^|]*\|[[:space:]]*grep -q' script/test_run/verify_integration_*.sh | grep -vc '^[[:space:]]*#')"
+echo
+
 echo "===== 6.22 DB 초기화(Django migrate·비Django prestart.sh)는 app 서비스에서만 기동 전 1회, celery·beat 는 app healthy 뒤 기동 (CL-WP1-08-R2b, CL-WP1-08-R4) ====="
 for s in gunicorn uvicorn uwsgi daphne; do
     f=compose/web-service/nginx_$s/docker-compose.yml
