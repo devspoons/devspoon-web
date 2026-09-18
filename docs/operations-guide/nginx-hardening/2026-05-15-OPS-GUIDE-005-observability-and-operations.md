@@ -457,7 +457,7 @@ ECS task role 이 Secrets Manager 에서 SSL key 를 GetSecretValue 권한으로
 
 | 시나리오 | RTO | RPO | 절차 |
 | --- | --- | --- | --- |
-| 단일 컨테이너 crash | 1분 | 0 | `docker compose restart` |
+| 단일 컨테이너 crash | 1분 | 0 | `docker compose restart <서비스>` (해당 컨테이너만). 전체 `docker compose restart` 는 모든 서비스를 동시에 재시작해 webserver 가 app 보다 먼저 떠 `[emerg] host not found in upstream` 으로 한 번 종료될 수 있다 — 전체 재기동은 `stop` → `start` |
 | 호스트 디스크 손실 | 30분 | 1시간 (rsync 주기) | 백업에서 letsencrypt 복원 + git clone + docker compose up |
 | 데이터센터 손실 | 2시간 | 1시간 | 대기 리전 활성화 (수동 DNS switch) |
 | ngxblocker 업스트림 침해 | 6시간 | 0 (다운로드 안 함) | cron 비활성화, 마지막 known-good globalblacklist.conf 사용 |

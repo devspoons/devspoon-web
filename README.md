@@ -473,7 +473,7 @@ curl -H "Host: localhost" http://localhost/    # → 200
 
   10. Users must remove the http conf file from config/web-server/nginx/<service>/conf.d/.
 
-  11. Run the “docker-compose restart” command in the compose folder. You can also use the “docker-compose stop” and “docker-compose start” commands in the compose folder. Do not use the "docker-compose down" command. Related configuration files may be deleted.
+  11. Apply the new conf in the compose folder: `docker compose exec webserver nginx -t && docker compose exec webserver nginx -s reload` (or restart only nginx: `docker compose restart webserver`). Do not restart the whole stack for this — `docker compose restart` restarts every service at the same time, so nginx can come up while the app container is still stopping and exit once with `[emerg] host not found in upstream` (it restarts itself, see §5). To restart everything, use `docker compose stop` then `docker compose start`. Do not use the "docker compose down" command. Related configuration files may be deleted.
 
   12. Certbot 갱신 cron 은 nginx 이미지 안에 내장되어 있습니다 (`docker/nginx/Dockerfile` 이 빌드 시 crontab 에 등록, 컨테이너 기동 시 cron 데몬 시작). 호스트에서 별도 `crontab` 설정 / 외부 스크립트 실행은 **불필요** 합니다. 갱신 시 `--deploy-hook "nginx -t && nginx -s reload"` 로 인증서가 바뀐 경우에만 nginx 가 graceful reload 합니다. 자세한 cron 진실 소스는 §3 "갱신 cron 의 진실 소스" 참조.
 
@@ -605,7 +605,7 @@ cd compose/web-service/nginx_gunicorn
 docker compose up -d        # app-data 볼륨 생성 (빈 DB 로 migrate 됨)
 docker compose cp ../../../www/django_sample/db.sqlite3 gunicorn-app:/data/django_sample.sqlite3
 docker compose exec gunicorn-app chown www-data:www-data /data/django_sample.sqlite3
-docker compose restart      # 기동 명령이 다시 돌며 이관한 DB 에 미적용 migrate 반영
+docker compose restart gunicorn-app   # 기동 명령이 다시 돌며 이관한 DB 에 미적용 migrate 반영 (app 만 — 전체 restart 는 §5 경합)
 ```
 
 > ⚠️ **`docker compose down -v` 는 `app-data` 볼륨, 즉 SQLite DB 를 삭제합니다.** 컨테이너만 내리려면 `docker compose stop` 을 쓰세요 (`down` 은 §6 배포 절차 정책상 비권장, 특히 `-v`). 백업: `docker compose cp gunicorn-app:/data/django_sample.sqlite3 ./backup.sqlite3`.
@@ -740,7 +740,7 @@ tail -f log/nginx/crontab_*.log
 2. `docker exec -it <nginx-container> bash`
 3. `/script/letsencrypt.sh` 실행 (webroot / domain / email 입력)
 4. 정상 발급 후 `exit`
-5. HTTPS conf 로 교체 → `docker compose restart`
+5. HTTPS conf 로 교체 → `docker compose exec webserver nginx -t && docker compose exec webserver nginx -s reload`
 
 #### dhparam 영속화 — 이미지 굽기 + 호스트 백업/복원 훅
 
@@ -758,6 +758,20 @@ tail -f log/nginx/crontab_*.log
 1. **최초 기동** (호스트 `ssl/dhparam/` 비어 있음) → hook 이 이미지의 dhparam.pem 을 호스트 백업 디렉터리로 **복사**. 같은 키가 호스트에 영속화됨.
 2. **`docker compose down` 후 재기동** → 호스트 백업본이 존재하므로 hook 이 그 백업본을 **이미지본 위에 덮어쓰기 복원**. nginx 가 첫 기동 시와 동일한 dhparam 키를 사용.
 3. **이미지 재빌드** (예: 베이스 nginx 버전 bump → 빌드 시 dhparam 이 새로 굽혀짐) → hook 이 호스트 백업본을 우선 적용하여 운영 키 동질성 유지. 새 dhparam 을 의도적으로 채택하려면 호스트 `ssl/dhparam/dhparam.pem` 을 삭제 후 재기동.
+
+#### 기동 순서 훅 — upstream 이름 해석 대기 (`30-wait-upstreams.sh`)
+
+nginx 는 기동할 때 conf 의 `proxy_pass`/`uwsgi_pass`/`fastcgi_pass` 에 적힌 앱 컨테이너 이름을 해석한다. 호스트 재부팅이나 `docker compose start` 처럼 app 보다 webserver 가 먼저 뜨면 이름이 없어 `[emerg] host not found in upstream` 으로 종료된다(`restart: always` 로 되살아나지만 한 번 죽는다).
+
+| 위치 | 역할 |
+|---|---|
+| `docker/nginx/Dockerfile` 섹션 10 / `/docker-entrypoint.d/30-wait-upstreams.sh` | conf.d(및 startup 계열 `proxy.d`) 의 upstream 이름이 해석될 때까지 대기 후 nginx 기동 |
+| `NGINX_UPSTREAM_WAIT` (webserver `environment`) | 최대 대기 초. 기본 30, `0` 이면 훅 비활성 |
+
+- 제외 대상: unix 소켓 · `$변수` · IP 리터럴 · `localhost` · conf 안에서 `upstream` 블록으로 정의된 이름.
+- 대기 시간이 지나도 해석되지 않으면 경고만 남기고 기동을 계속한다(설정 오류는 기존대로 nginx 가 `[emerg]` 로 알림).
+- 전체 `docker compose restart` 는 서비스를 동시에 재시작해 훅이 확인한 **뒤에** app 이 내려갈 수 있다 — conf 반영은 `nginx -s reload`, 전체 재기동은 `stop` → `start` 를 쓴다(§5).
+- 회귀: `script/test_run/s6_regression.sh` 6.38.
 
 검증:
 
@@ -905,6 +919,7 @@ sudo sysctl --system
 | celery 메모리 증가 | prefork 워커 메모리 누수 | `--max-tasks-per-child=2000` 동작 확인. 라이브러리(특히 numpy/pandas) 의 메모리 fragmentaion 가능성 |
 | logrotate 미동작 | 호스트 경로 오타 / cron 미설치 | `script/logrotate` (s 주의) 폴더명, 컨테이너 cron 데몬 동작 확인 |
 | certbot 갱신 실패 | webroot 권한 / DNS 변경 / 80 포트 차단 | `/log/nginx/crontab_*.log` 확인. 수동 dry-run: `certbot renew --dry-run` |
+| webserver 로그 `[emerg] host not found in upstream "<app>"` (webserver 가 한 번 종료 후 자동 재기동) | nginx 는 기동 시 conf 의 앱 컨테이너 이름을 해석한다. 호스트 재부팅·`docker compose start` 처럼 app 보다 nginx 가 먼저 뜨거나, 전체 `docker compose restart` 가 모든 서비스를 동시에 재시작해 app 이 내려가는 순간 nginx 가 뜨면 이름이 없다 | 기동 쪽은 nginx 이미지의 `/docker-entrypoint.d/30-wait-upstreams.sh` 가 이름이 해석될 때까지 최대 `NGINX_UPSTREAM_WAIT` 초(기본 30, webserver `environment` 로 조정·0 이면 비활성) 기다려 막는다(이미지 재빌드 `--build` 필요). 전체 `restart` 의 동시 종료는 훅이 확인한 뒤에도 app 이 내려갈 수 있어 완전히 막지 못하므로, conf 반영은 `nginx -s reload`·`docker compose restart webserver`, 전체 재기동은 `stop` → `start` 를 쓴다. 이 로그가 계속 나오면 conf 의 앱 이름과 compose `container_name`/alias 불일치를 확인 |
 | `preload_app=True` 후 DB 에러 | fork 후 DB 커넥션 공유 | `post_fork` hook 에서 `connections.close_all()` (Django) 또는 engine 재생성 |
 
 ---
