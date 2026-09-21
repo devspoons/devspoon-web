@@ -592,7 +592,7 @@ bash -c '. script/lib/django_secrets.sh && ensure_env_secrets compose/web-servic
 - `FLOWER_ID` 는 비밀이 아니라 채우지 않습니다 — `CHANGE_ME_FLOWER_USER` 를 직접 바꾸세요.
 - 호스트에서 `manage.py` 를 직접 실행할 때만 `www/django_sample/secrets.json` 이 필요합니다: `bash -c '. script/lib/django_secrets.sh && ensure_django_secrets'` (없을 때만 생성, 600). 의존성은 `cd www/django_sample && uv sync --extra celery` 로 설치합니다 — `INSTALLED_APPS` 의 `django_celery_beat` 가 extra `celery` 에만 있어 `--extra celery` 없이는 `ModuleNotFoundError` 입니다. 컨테이너는 `DJANGO_SECRET_KEY` 환경변수를 씁니다.
 
-> **업그레이드 노트 — 이전 버전에서 쓰던 `.env` 를 유지하는 경우**: 옛 `.env` 에는 `DJANGO_SECRET_KEY` 줄이 없거나 `CHANGE_ME_*` 값이 남아 있을 수 있습니다. 위 헬퍼를 같은 `.env` 에 한 번 실행하면 같은 폴더 `docker-compose*.yml` 이 `:?` 로 요구하는 비밀 키(이름에 SECRET·PASSWORD·PWD 포함) 중 없는 키를 끝에 추가하고 `CHANGE_ME_*` 를 교체하며, 기존 값은 보존하고 권한을 600 으로 맞춥니다. `KEY=""` 처럼 따옴표로 둘러싼 빈 값은 채우지 않으니 먼저 `KEY=` 로 고치세요.
+> **업그레이드 노트 — 이전 버전에서 쓰던 `.env` 를 유지하는 경우**: 옛 `.env` 에는 `DJANGO_SECRET_KEY` 줄이 없거나 `CHANGE_ME_*` 값이 남아 있을 수 있습니다. 위 헬퍼를 같은 `.env` 에 한 번 실행하면 같은 폴더 `docker-compose*.yml` 과 그 파일들이 `include:` 로 참조하는 조각이 `:?` 로 요구하는 비밀 키(이름에 SECRET·PASSWORD·PWD 포함) 중 없는 키를 끝에 추가하고 `CHANGE_ME_*` 를 교체하며, 기존 값은 보존하고 권한을 600 으로 맞춥니다. `KEY=""` 처럼 따옴표로 둘러싼 빈 값은 채우지 않으니 먼저 `KEY=` 로 고치세요.
 
 #### 0.6.2 SQLite 데이터 위치 — named volume `/data`
 
