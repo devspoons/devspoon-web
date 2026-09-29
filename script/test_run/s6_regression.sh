@@ -664,6 +664,24 @@ u42 "uwsgi.ini 네이티브 회전 설정 존재" "$(grep -cE '^log-maxsize' con
 u42 "dropin 파일에 마운트 금지 경고" "$(head -1 script/logrotate/uwsgi/uwsgi | grep -c '마운트하지 않는다')" 1
 echo
 
+echo "===== 6.43 php pool 이 이미지 docker.conf 의 지시어를 직접 들고 간다 (AUDIT-W1-04) ====="
+# compose 가 pool.d/ 를 디렉터리째 마운트해 공식 이미지의 php-fpm.d/docker.conf 가 가려진다.
+# clear_env 가 없으면 기본값 yes 가 적용되어 컨테이너 환경변수가 PHP 워커에 전달되지 않는다
+# (검증: getenv("TZ") 가 수정 전 EMPTY → 수정 후 Asia/Seoul).
+u43() { if [ "$2" = "$3" ]; then echo "  PASS 6.43 $1"; else echo "  FAIL 6.43 $1 (got [$2], expected [$3])"; FAILS=$((FAILS+1)); fi; }
+for v in 7.3 8.4; do
+    f="config/app-server/php-$v/pool.d/www.conf"
+    u43 "php-$v clear_env = no"            "$(grep -cE '^clear_env = no' "$f")" 1
+    u43 "php-$v catch_workers_output = yes" "$(grep -cE '^catch_workers_output = yes' "$f")" 1
+    # README §2 의 로그 일원화 + script/logrotate/php-fpm/php-fpm 회전 대상 3종
+    for k in 'access\.log = /log/php-fpm/access\.log' 'slowlog = /log/php-fpm/slow\.log' 'php_admin_value\[error_log\] = /log/php-fpm/www-error\.log'; do
+        u43 "php-$v $(echo "$k" | tr -d '\\')" "$(grep -cE "^$k" "$f")" 1
+    done
+done
+# 디렉터리 마운트를 전제로 한 단언 — 단일 파일 마운트로 바꾸면 위 지시어 대신 이미지 기본값이 살아난다
+u43 "php-8.4 는 pool.d 를 디렉터리로 마운트" "$(grep -c 'php-8.4/pool.d/:/usr/local/etc/php-fpm.d' compose/web-service/nginx_php-8.4/docker-compose.yml)" 1
+echo
+
 echo "===== 6 FAILS=$FAILS ====="
 # 실패가 있으면 non-zero 로 종료 → CI / 상위 스크립트가 $? 로 판정 가능.
 [ "$FAILS" -eq 0 ]
