@@ -649,7 +649,7 @@ docker compose restart gunicorn-app   # 기동 명령이 다시 돌며 이관한
 | `S5_WAIT` | `20` | `s5_https.sh` 가 reload 뒤 HTTPS 응답을 기다리는 최대 초 |
 | `STABLE_WINDOW` | `15` | 검증기가 컨테이너 running · RestartCount 불변을 관측하는 안정화 창(초) |
 
-`bash script/ci/run-ci.sh` 가 10단계(preflight → prereq·로그 디렉터리 → nginx conf 생성기 → compose 검증 → 이미지 빌드 → 정적 회귀(s6) → healthcheck → 스택 매트릭스 → 샘플 프로젝트 → 스크립트 로그)를 순서대로 실행합니다.
+`bash script/ci/run-ci.sh` 가 11단계(preflight → 의존성 취약점 감사(`www/*/uv.lock` 전수 `uv audit`) → prereq·로그 디렉터리 → nginx conf 생성기 → compose 검증 → 이미지 빌드 → 정적 회귀(s6) → healthcheck → 스택 매트릭스 → 샘플 프로젝트 → 스크립트 로그)를 순서대로 실행합니다.
 
 ---
 

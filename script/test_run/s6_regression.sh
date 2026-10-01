@@ -682,6 +682,18 @@ done
 u43 "php-8.4 는 pool.d 를 디렉터리로 마운트" "$(grep -c 'php-8.4/pool.d/:/usr/local/etc/php-fpm.d' compose/web-service/nginx_php-8.4/docker-compose.yml)" 1
 echo
 
+echo "===== 6.44 의존성 취약점 감사가 CI 에 편입되어 있다 ====="
+# 이 저장소들은 PR 을 쓰지 않아 Dependabot 자동 PR(security updates)을 끈다.
+# 그 빈자리를 run-ci 의 감사 단계가 메우므로, 배선이 풀리면 취약한 lock 이 조용히 들어온다.
+a44() { if [ "$2" = "$3" ]; then echo "  PASS 6.44 $1"; else echo "  FAIL 6.44 $1 (got [$2], expected [$3])"; FAILS=$((FAILS+1)); fi; }
+a44 "audit-deps.sh 존재·실행권한" "$([ -x script/test/audit-deps.sh ] && echo yes || echo no)" yes
+a44 "허용목록 파일 존재" "$([ -f script/test/audit-allow.txt ] && echo yes || echo no)" yes
+a44 "run-ci.sh 에 감사 단계 배선" "$(grep -c 'run_step "의존성 취약점 감사"' script/ci/run-ci.sh)" 1
+a44 "감사 대상 lock 개수" "$(ls -d www/*/uv.lock 2>/dev/null | wc -l)" 3
+# 판정이 종료코드와 요약 문자열에만 의존하는지 — uv audit 가 실험적이라 서식은 바뀔 수 있다.
+a44 "요약 문자열로만 판정" "$(grep -c 'Found \[0-9\]\* known vulnerabilit' script/test/audit-deps.sh)" 1
+echo
+
 echo "===== 6 FAILS=$FAILS ====="
 # 실패가 있으면 non-zero 로 종료 → CI / 상위 스크립트가 $? 로 판정 가능.
 [ "$FAILS" -eq 0 ]

@@ -653,7 +653,7 @@ docker compose restart gunicorn-app   # the startup command runs again and appli
 | `S5_WAIT` | `20` | Maximum seconds `s5_https.sh` waits for an HTTPS response after a reload |
 | `STABLE_WINDOW` | `15` | The stabilisation window (seconds) over which a verifier observes containers staying running with an unchanged RestartCount |
 
-`bash script/ci/run-ci.sh` runs ten steps in order: preflight → prereq and log directories → nginx conf generators → compose validation → image builds → static regression (s6) → healthcheck → stack matrix → sample projects → script logs.
+`bash script/ci/run-ci.sh` runs eleven steps in order: preflight → dependency audit (`uv audit` over every `www/*/uv.lock`) → prereq and log directories → nginx conf generators → compose validation → image builds → static regression (s6) → healthcheck → stack matrix → sample projects → script logs.
 
 ---
 
