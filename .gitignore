@@ -13,6 +13,14 @@ nginx_cache/
 
 # ssl files
 **/ssl/
+# 단, 스택별 ssl/letsencrypt 는 compose 가 bind mount 하므로 디렉터리를 트리에 남긴다
+# (자리표시자가 없으면 첫 기동 때 Docker 가 root 소유로 만들어 이후 git 작업이 막힌다).
+# Harbor ssl 과 같은 방식: 디렉터리만 되살리고 내용물은 무시, 빈 .gitkeep 하나만 추적.
+!compose/web-service/*/ssl/
+compose/web-service/*/ssl/*
+!compose/web-service/*/ssl/letsencrypt/
+compose/web-service/*/ssl/letsencrypt/*
+!compose/web-service/*/ssl/letsencrypt/.gitkeep
 
 # Redis 실시간 dump (테스트/운영 중 컨테이너가 생성) — 모든 스택 공통
 # .gitkeep 은 negation 으로 유지 (디렉터리 자체는 트리 상에 보존)

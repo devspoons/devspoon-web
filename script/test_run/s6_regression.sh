@@ -694,6 +694,23 @@ a44 "감사 대상 lock 개수" "$(ls -d www/*/uv.lock 2>/dev/null | wc -l)" 3
 a44 "요약 문자열로만 판정" "$(grep -c 'Found \[0-9\]\* known vulnerabilit' script/test/audit-deps.sh)" 1
 echo
 
+echo "===== 6.45 런타임 bind mount 경로의 자리표시자가 트리에 남아 있다 ====="
+# compose 가 ./redis/data 와 ./ssl/letsencrypt 를 bind mount 한다. 자리표시자가 없으면 클론 후
+# 첫 기동 때 Docker 가 그 디렉터리를 root 소유로 만들고, 이후 호스트 계정의 git 작업이 막힌다
+# (실제로 라이브 테스트 중 추적 파일이 root 소유로 넘어가 checkout·merge 가 깨진 적이 있다).
+a45() { if [ "$2" = "$3" ]; then echo "  PASS 6.45 $1"; else echo "  FAIL 6.45 $1 (got [$2], expected [$3])"; FAILS=$((FAILS+1)); fi; }
+a45 "redis/data/.gitkeep 추적 개수" "$(git ls-files 'compose/web-service/*/redis/data/.gitkeep' | wc -l)" 6
+a45 "ssl/letsencrypt/.gitkeep 추적 개수" "$(git ls-files 'compose/web-service/*/ssl/letsencrypt/.gitkeep' | wc -l)" 6
+# 자리표시자 이름은 .gitkeep 하나로 통일한다 — temp/temp.txt 가 섞이면 .gitignore negation 이 빗나간다.
+a45 "temp·temp.txt 자리표시자 잔존" "$(git ls-files 'compose/web-service/' | grep -cE '/temp(\.txt)?$')" 0
+# 마운트가 제거된 경로라 되살아나면 안 된다 (ssl/certs:/etc/ssl/certs 는 CA 번들을 가려 certbot 을 깼다).
+a45 "폐기된 ssl/certs 추적" "$(git ls-files 'compose/web-service/*/ssl/certs/' | wc -l)" 0
+# negation 이 실제로 동작하는지 — 부모 디렉터리를 통째로 제외하는 규칙이 다시 들어오면 여기서 깨진다.
+a45 "redis/data/.gitkeep 이 무시되지 않음" "$(git check-ignore -q --no-index compose/web-service/nginx_gunicorn/redis/data/.gitkeep && echo ignored || echo ok)" ok
+a45 "ssl/letsencrypt/.gitkeep 이 무시되지 않음" "$(git check-ignore -q --no-index compose/web-service/nginx_gunicorn/ssl/letsencrypt/.gitkeep && echo ignored || echo ok)" ok
+a45 "실제 인증서는 여전히 무시" "$(git check-ignore -q --no-index compose/web-service/nginx_gunicorn/ssl/letsencrypt/live/ex.test/privkey.pem && echo ignored || echo tracked)" ignored
+echo
+
 echo "===== 6 FAILS=$FAILS ====="
 # 실패가 있으면 non-zero 로 종료 → CI / 상위 스크립트가 $? 로 판정 가능.
 [ "$FAILS" -eq 0 ]
